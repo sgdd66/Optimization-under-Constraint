@@ -1,0 +1,17 @@
+PROJECT( main )
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+add_compile_options(-std=c++11)
+
+
+
+AUX_SOURCE_DIRECTORY(. DIR_SRCS)
+ADD_EXECUTABLE(main ${DIR_SRCS}  )
+
+
+
+
+
+
+
+
+

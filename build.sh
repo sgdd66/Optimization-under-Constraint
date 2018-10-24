@@ -3,7 +3,7 @@
 set -e
 bash ~/.bashrc
 
-projectDir=/home/sgdd/test
+projectDir=/home/sgdd/Optimization-under-Constraint
 test -e "$projectDir/build" && rm -r "$projectDir/build"
 mkdir "$projectDir/build"
 cd "$projectDir/build"

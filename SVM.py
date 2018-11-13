@@ -102,12 +102,13 @@ class SVM(object):
 
         输出：无
         '''
-        
+        #观测变量，存储每一轮迭代目标函数的值
         self.aim=[]
         #观测变量，存储每一迭代选择的变量索引
         self.variable=[]
-        while(not self.canStop()):
 
+        while(not self.canStop()):
+            #更新两个变量的alpha
             i1,i2=self.getVariableIndex()
             self.variable.append([i1,i2])
             K11=self.Gram[i1,i1]
@@ -134,11 +135,29 @@ class SVM(object):
             alpha1_new=alpha1_old+y1*y2*(alpha2_old-alpha2_new)
             self.alpha[i1]=alpha1_new
             self.alpha[i2]=alpha2_new
-            b1_new=-E1-y1*K11*(alpha1_new-alpha1_old)-y2*K12*(alpha2_new-alpha2_old)+self.b
-            b2_new=-E2-y1*K12*(alpha1_new-alpha1_old)-y2*K22*(alpha2_new-alpha2_old)+self.b
-            self.b=(b1_new+b2_new)/2
+            #更新系数b
+            if alpha1_new>0 and alpha1_new<self.C:
+                b1_new=-E1-y1*K11*(alpha1_new-alpha1_old)-y2*K12*(alpha2_new-alpha2_old)+self.b
+            else:
+                b1_new = np.nan
+
+            if alpha2_new>0 and alpha2_new<self.C:
+                b2_new=-E2-y1*K12*(alpha1_new-alpha1_old)-y2*K22*(alpha2_new-alpha2_old)+self.b
+            else:
+                b2_new = np.nan
+
+            if b1_new is np.nan and b2_new is not np.nan:
+                self.b = b2_new
+            elif b1_new is not np.nan and b2_new is np.nan:
+                self.b = b1_new
+            elif b1_new is not np.nan and b2_new is not np.nan:
+                self.b=(b1_new+b2_new)/2
+
+            #更新系数E
             for i in range(self.x.shape[0]):
                 self.E[i]=self.g(i)-self.y[i]
+
+
             aim = 0
             for i in range(self.x.shape[0]):
                 for j in range(self.x.shape[0]):

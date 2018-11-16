@@ -20,7 +20,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-
+import pandas as pd
 
 class SVM(object):
 
@@ -136,21 +136,11 @@ class SVM(object):
             self.alpha[i1]=alpha1_new
             self.alpha[i2]=alpha2_new
             #更新系数b
-            if alpha1_new>0 and alpha1_new<self.C:
-                b1_new=-E1-y1*K11*(alpha1_new-alpha1_old)-y2*K12*(alpha2_new-alpha2_old)+self.b
-            else:
-                b1_new = np.nan
-
-            if alpha2_new>0 and alpha2_new<self.C:
-                b2_new=-E2-y1*K12*(alpha1_new-alpha1_old)-y2*K22*(alpha2_new-alpha2_old)+self.b
-            else:
-                b2_new = np.nan
-
-            if b1_new is np.nan and b2_new is not np.nan:
-                self.b = b2_new
-            elif b1_new is not np.nan and b2_new is np.nan:
+            b1_new=-E1-y1*K11*(alpha1_new-alpha1_old)-y2*K12*(alpha2_new-alpha2_old)+self.b
+            b2_new=-E2-y1*K12*(alpha1_new-alpha1_old)-y2*K22*(alpha2_new-alpha2_old)+self.b
+            if alpha1_new>0 and alpha1_new<self.C and alpha2_new>0 and alpha2_new<self.C:
                 self.b = b1_new
-            elif b1_new is not np.nan and b2_new is not np.nan:
+            else:
                 self.b=(b1_new+b2_new)/2
 
             #更新系数E
@@ -164,6 +154,8 @@ class SVM(object):
                     aim += self.alpha[i] * self.alpha[j] * self.y[i] * self.y[j] * self.Gram[i, j]
             aim -= np.sum(self.alpha)
             self.aim.append(aim)
+
+            print(self.variable[-1],self.aim[-1])
         for i in range(self.x.shape[1]):
             self.w[i]=np.sum(self.alpha*self.y*self.x[:,i])
 
@@ -214,20 +206,57 @@ class SVM(object):
         for i in range(row):
             kkt[i]=self.KKT(i)
         kktSorted=np.sort(kkt)    
-        E_list=np.sort(self.E)        
+        E_sorted_list=np.sort(self.E)        
 
-        for i in range(row):              
-            index1=np.where(kkt==kktSorted[row-i-1])[0][0]
-            e1=self.E[index1]
-            
-            if e1>0:
-                index2=np.where(E[0]==self.E)[0][0]
-                if index2 == index1:
-                    index2=np.where(E[1]==self.E)[0][0]
-            else:
-                index2=np.where(E[row-1]==self.E)[0][0]
-                if index2 == index1:
-                   index2=np.where(E[row-2]==self.E)[0][0] 
+           
+        index1=np.where(kkt==kktSorted[row-1])[0][0]
+        e1=self.E[index1]
+        
+        if e1>0:
+            index2=np.where(E_sorted_list[0]==self.E)[0][0]
+            if index2 == index1:
+                #如果最小值有多个相同的值，则应该使用这种方法
+                if len(np.where(E_sorted_list[0]==self.E)[0])>1:
+                    index2 = np.where(E_sorted_list[0]==self.E)[0][1]
+                else:
+                    index2=np.where(E_sorted_list[1]==self.E)[0][0]
+        else:
+            index2=np.where(E_sorted_list[row-1]==self.E)[0][0]
+            if index2 == index1:
+                if len(np.where(E_sorted_list[row-1]==self.E)[0])>1:
+                    index2 = np.where(E_sorted_list[row-1]==self.E)[0][1] 
+                else:
+                    index2=np.where(E_sorted_list[row-2]==self.E)[0][0] 
+
+        #如果选择的优化变量与之前两轮的优化变量相同，将会重新选择
+        if len(self.variable)>2:
+            last_index1 = self.variable[-1]
+            last_index2 = self.variable[-2]
+            if index1 == last_index1[0] and index2== last_index1[1] and \
+                index1 == last_index2[0] and index2 == last_index2[1]:
+
+                if len(np.where(kkt==kktSorted[row-1])[0])>1:
+                    index1 = np.where(kkt==kktSorted[row-1])[0][1]
+                else:
+                    index1=np.where(kkt==kktSorted[row-2])[0][0]
+                e1=self.E[index1]
+                
+                if e1>0:
+                    index2=np.where(E_sorted_list[0]==self.E)[0][0]
+                    if index2 == index1:
+                        #如果最小值有多个相同的值，则应该使用这种方法
+                        if len(np.where(E_sorted_list[0]==self.E)[0])>1:
+                            index2 = np.where(E_sorted_list[0]==self.E)[0][1]
+                        else:
+                            index2=np.where(E_sorted_list[1]==self.E)[0][0]
+                else:
+                    index2=np.where(E_sorted_list[row-1]==self.E)[0][0]
+                    if index2 == index1:
+                        if len(np.where(E_sorted_list[row-1]==self.E)[0])>1:
+                            index2 = np.where(E_sorted_list[row-1]==self.E)[0][1] 
+                        else:
+                            index2=np.where(E_sorted_list[row-2]==self.E)[0][0]              
+                
 
 
         return index1,index2
@@ -261,15 +290,60 @@ class SVM(object):
             else:
                 return np.abs(y*g-1)
 
-if __name__=="__main__":
-    x=np.array([[1,2],[2,3],[3,3],[2,1],[3,2]])
-    print(x.shape)
-    y=np.array([1,1,1,-1,-1])
-    print(y.shape)
-    # svm=SVM(1)
-    # svm.fit(x,y)
-    # plt.scatter(x[:,0],x[:,1])
-    # x=np.linspace(0,4,100)
-    # y=(svm.w[0]*x+svm.b)/-svm.w[1]
-    # plt.plot(x,y)
+def test_Sample1():
+    '''测试样本1：正例与反例线性可分'''
+    x1 = 3
+    y1 = 5
+
+    x2 = 5
+    y2 = 3
+
+    R1 = 1
+    R2 = 1
+
+    R1_list = np.random.uniform(0,1,50)*R1
+    R2_list = np.random.uniform(0,1,50)*R2
+
+    angle1_list = np.random.uniform(0,1,50)*2*np.pi
+    angle2_list = np.random.uniform(0,1,50)*2*np.pi
+
+    x1_list = R1_list*np.cos(angle1_list)+x1
+    y1_list = R1_list*np.sin(angle1_list)+y1
+
+    x2_list = R2_list*np.cos(angle2_list)+x2
+    y2_list = R2_list*np.sin(angle2_list)+y2 
+
+    # fig = plt.figure(0)
+    # ax1 = fig.add_subplot(111)
+    # ax1.scatter(x1_list,y1_list)
+    # ax1.scatter(x2_list,y2_list)
     # plt.show()
+
+    x1_list = x1_list.reshape((-1,1))
+    y1_list = y1_list.reshape((-1,1))
+    sample_positive = np.hstack((x1_list,y1_list,np.zeros((50,1))+1))
+
+    x2_list = x2_list.reshape((-1,1))
+    y2_list = y2_list.reshape((-1,1))
+    sample_negative = np.hstack((x2_list,y2_list,np.zeros((50,1))-1))
+
+    sample = np.vstack((sample_negative,sample_positive))
+    np.savetxt('./Data/sample1.csv',sample,delimiter=',')
+
+    
+
+
+if __name__=="__main__":
+    # test_Sample1()
+
+    x=np.array([[1,2],[2,3],[3,3],[2,1],[3,2]])
+
+    y=np.array([1,1,1,-1,-1])
+
+    svm=SVM(1)
+    svm.fit(x,y)
+    plt.scatter(x[:,0],x[:,1])
+    x=np.linspace(0,4,100)
+    y=(svm.w[0]*x+svm.b)/-svm.w[1]
+    plt.plot(x,y)
+    plt.show()

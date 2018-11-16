@@ -178,17 +178,15 @@ def test10():
     cell_A2 = Data_sheet.col(0)[1].value  # 使用列索引
     print(cell_A1, cell_B1, cell_A2)
 
-    # # 获取单元格内容的数据类型
-    # # ctype:0 empty,1 string, 2 number, 3 date, 4 boolean, 5 error
-    # print('cell(0,0)数据类型:', Data_sheet.cell(0, 0).ctype)
-    # print('cell(1,0)数据类型:', Data_sheet.cell(1, 0).ctype)
-    # print('cell(1,1)数据类型:', Data_sheet.cell(1, 1).ctype)
-    # print('cell(1,2)数据类型:', Data_sheet.cell(1, 2).ctype)
+    # 获取单元格内容的数据类型
+    # ctype:0 empty,1 string, 2 number, 3 date, 4 boolean, 5 error
+    print('cell(0,0)数据类型:', Data_sheet.cell(0, 0).ctype)
 
-    # # 获取单元格内容为日期的数据
-    # date_value = xlrd.xldate_as_tuple(Data_sheet.cell_value(1,0),workbook.datemode)
-    # print(type(date_value), date_value)
-    # print('%d:%d:%d' % (date_value[0:3]))
+
+    # 获取单元格内容为日期的数据
+    date_value = xlrd.xldate_as_tuple(Data_sheet.cell_value(1,0),workbook.datemode)
+    print(type(date_value), date_value)
+    print('%d:%d:%d' % (date_value[0:3]))
 
 def test11():
     '''写excel文件'''
@@ -301,8 +299,13 @@ def test14():
     print(data)
     np.savetxt('./Data/tmp_7.txt',data,fmt='%d',delimiter=',',newline='\n')
 
+def test15():
+    '''以负数为索引号可以逆向查找'''
+    a = [[-1,2],[2,4]]
+    print(a[-1])
+    print(a[-2])
 if __name__=='__main__':
-    test14()
+    test15()
 
 
 

@@ -77,6 +77,7 @@ def test2():
 
     cur.close()
 
+    #通过指定cursorclass可以使查询返回的具有字典结构
     cur_dict = conn.cursor(cursorclass=MySQLdb.cursors.DictCursor)
     cur_dict.execute("select * from users")
     lines = cur_dict.fetchall()
@@ -91,7 +92,7 @@ def test3():
     conn = MySQLdb.connect(host='localhost',user='root',passwd=password,db='OUC',port=3306,charset='utf8')
 
     cur = conn.cursor()
-
+	#注意("mypython",)中的逗号是必须的，缺失会报错
     cur.execute("update users set username=%s where id=2",("mypython",))
     conn.commit()
 
@@ -104,3 +105,4 @@ def test3():
 
 if __name__=='__main__':
     test3()
+

@@ -41,7 +41,7 @@ class SVM(object):
         else:
             self.Kernal=kernal
 
-    def fit(self,x,y):
+    def fit(self,x,y,maxIter=100):
         '''
         训练样本数据
 
@@ -54,25 +54,27 @@ class SVM(object):
         '''
 
         #初始化变量
-        row = x.shape[0]
-        Gram = np.zeros((row, row))
-        for i in range(row):
-            for j in range(i, row):
+        self.sampleSum = x.shape[0]
+        Gram = np.zeros((self.sampleSum, self.sampleSum))
+        for i in range(self.sampleSum):
+            for j in range(i, self.sampleSum):
                 if i == j:
                     Gram[i, j] = self.Kernal(x[i, :], x[j, :])
                 else:
                     Gram[i, j] = self.Kernal(x[i, :], x[j, :])
                     Gram[j, i] = Gram[i, j]
         self.Gram=Gram
-        col=x.shape[1]
-        self.w=np.zeros(col)
+        self.sampleDim=x.shape[1]
+        self.w=np.zeros(self.sampleDim)
         self.b=0
         self.x=x
         self.y=y
-        self.alpha = np.zeros(row)
-        self.E=np.zeros(row)
-        for i in range(row):
+        self.alpha = np.zeros(self.sampleSum)
+        self.E=np.zeros(self.sampleSum)
+        for i in range(self.sampleSum):
             self.E[i]=self.g(i)-self.y[i]
+        
+        self.maxIter = maxIter
 
         #使用SMO算法求解
         self.SMO()
@@ -108,6 +110,8 @@ class SVM(object):
         self.variable=[]
 
         while(not self.canStop()):
+            if len(self.variable)>self.maxIter:
+                break
             #更新两个变量的alpha
             i1,i2=self.getVariableIndex()
             self.variable.append([i1,i2])
@@ -138,20 +142,23 @@ class SVM(object):
             #更新系数b
             b1_new=-E1-y1*K11*(alpha1_new-alpha1_old)-y2*K12*(alpha2_new-alpha2_old)+self.b
             b2_new=-E2-y1*K12*(alpha1_new-alpha1_old)-y2*K22*(alpha2_new-alpha2_old)+self.b
-            if alpha1_new>0 and alpha1_new<self.C and alpha2_new>0 and alpha2_new<self.C:
+            if alpha1_new>0 and alpha1_new<self.C:
                 self.b = b1_new
+            elif alpha2_new>0 and alpha2_new<self.C:
+                self.b = b2_new
             else:
                 self.b=(b1_new+b2_new)/2
 
             #更新系数E
-            for i in range(self.x.shape[0]):
+            for i in range(self.sampleSum):
                 self.E[i]=self.g(i)-self.y[i]
 
 
             aim = 0
-            for i in range(self.x.shape[0]):
-                for j in range(self.x.shape[0]):
+            for i in range(self.sampleSum):
+                for j in range(self.sampleSum):
                     aim += self.alpha[i] * self.alpha[j] * self.y[i] * self.y[j] * self.Gram[i, j]
+            aim /= 2.0
             aim -= np.sum(self.alpha)
             self.aim.append(aim)
 
@@ -169,10 +176,9 @@ class SVM(object):
         false : 不可终止\n
         true : 可终止\n
         """
-        if np.sum(self.alpha*self.y)!=0:
-            return False
-        kkt=np.zeros((self.x.shape[0]))
-        for i in range(self.x.shape[0]):
+
+        kkt=np.zeros((self.sampleSum))
+        for i in range(self.sampleSum):
             kkt[i]=self.KKT(i)
         if np.sum(np.abs(kkt))>0.00001:
             return False
@@ -201,61 +207,88 @@ class SVM(object):
         index2 : 第二个变量的索引号
         """
 
-        row=self.x.shape[0]
-        kkt=np.zeros(row)
-        for i in range(row):
+
+        kkt=np.zeros(self.sampleSum)
+        for i in range(self.sampleSum):
             kkt[i]=self.KKT(i)
         kktSorted=np.sort(kkt)    
         E_sorted_list=np.sort(self.E)        
 
+        #根据kktSorted求得对应的index序列
+        index_list = []
+        while len(index_list)<self.sampleSum:
+            num = len(index_list)
+            index_list.extend(np.where(kkt==kktSorted[num])[0])
+
            
-        index1=np.where(kkt==kktSorted[row-1])[0][0]
+        #从支持向量中选择kkt违反条件最严重的
+        index1 = np.nan
+        for i in range(len(index_list)-1,-1,-1):
+            index = index_list[i]
+            if self.alpha[index]>0 and self.alpha[index]<self.C and kkt[index]!=0:
+                index1 = index
+                break
+        if index1 is np.nan:
+            index1 = index_list[-1]
+
         e1=self.E[index1]
-        
-        if e1>0:
-            index2=np.where(E_sorted_list[0]==self.E)[0][0]
-            if index2 == index1:
-                #如果最小值有多个相同的值，则应该使用这种方法
-                if len(np.where(E_sorted_list[0]==self.E)[0])>1:
-                    index2 = np.where(E_sorted_list[0]==self.E)[0][1]
-                else:
-                    index2=np.where(E_sorted_list[1]==self.E)[0][0]
-        else:
-            index2=np.where(E_sorted_list[row-1]==self.E)[0][0]
-            if index2 == index1:
-                if len(np.where(E_sorted_list[row-1]==self.E)[0])>1:
-                    index2 = np.where(E_sorted_list[row-1]==self.E)[0][1] 
-                else:
-                    index2=np.where(E_sorted_list[row-2]==self.E)[0][0] 
 
-        #如果选择的优化变量与之前两轮的优化变量相同，将会重新选择
-        if len(self.variable)>2:
-            last_index1 = self.variable[-1]
-            last_index2 = self.variable[-2]
-            if index1 == last_index1[0] and index2== last_index1[1] and \
-                index1 == last_index2[0] and index2 == last_index2[1]:
+        max_error_diff = 0
+        for i in range(self.sampleSum):
+            if i == index1:
+                continue
+            if np.abs(self.E[i]-e1)>max_error_diff:
+                index2 = i
+        # if e1>0:
+        #     index2=np.where(E_sorted_list[0]==self.E)[0][0]
+        #     if index2 == index1:
+        #         #如果最小值有多个相同的值，则应该使用这种方法
+        #         if len(np.where(E_sorted_list[0]==self.E)[0])>1:
+        #             index2 = np.where(E_sorted_list[0]==self.E)[0][1]
+        #         else:
+        #             index2=np.where(E_sorted_list[1]==self.E)[0][0]
+        # else:
+        #     index2=np.where(E_sorted_list[-1]==self.E)[0][0]
+        #     if index2 == index1:
+        #         if len(np.where(E_sorted_list[-1]==self.E)[0])>1:
+        #             index2 = np.where(E_sorted_list[-1]==self.E)[0][1] 
+        #         else:
+        #             index2=np.where(E_sorted_list[-2]==self.E)[0][0] 
 
-                if len(np.where(kkt==kktSorted[row-1])[0])>1:
-                    index1 = np.where(kkt==kktSorted[row-1])[0][1]
-                else:
-                    index1=np.where(kkt==kktSorted[row-2])[0][0]
-                e1=self.E[index1]
+        # #如果选择的优化变量与之前两轮的优化变量相同，将会重新选择
+        # if len(self.variable)>2:
+        #     last_index1 = self.variable[-1]
+        #     last_index2 = self.variable[-2]
+        #     if index1 == last_index1[0] and index2== last_index1[1] and \
+        #         index1 == last_index2[0] and index2 == last_index2[1]:
+
+        #         index_list.remove(index1)
+        #         index1 = np.nan
+        #         for i in range(len(index_list)-1,-1,-1):
+        #             index = index_list[i]
+        #             if self.alpha[index]>0 and self.alpha[index]<self.C and kkt[index]!=0:
+        #                 index1 = index
+        #                 break
+        #         if index1 is np.nan:
+        #             index1 = index_list[-1]
+
+        #         e1=self.E[index1]
                 
-                if e1>0:
-                    index2=np.where(E_sorted_list[0]==self.E)[0][0]
-                    if index2 == index1:
-                        #如果最小值有多个相同的值，则应该使用这种方法
-                        if len(np.where(E_sorted_list[0]==self.E)[0])>1:
-                            index2 = np.where(E_sorted_list[0]==self.E)[0][1]
-                        else:
-                            index2=np.where(E_sorted_list[1]==self.E)[0][0]
-                else:
-                    index2=np.where(E_sorted_list[row-1]==self.E)[0][0]
-                    if index2 == index1:
-                        if len(np.where(E_sorted_list[row-1]==self.E)[0])>1:
-                            index2 = np.where(E_sorted_list[row-1]==self.E)[0][1] 
-                        else:
-                            index2=np.where(E_sorted_list[row-2]==self.E)[0][0]              
+        #         if e1>0:
+        #             index2=np.where(E_sorted_list[0]==self.E)[0][0]
+        #             if index2 == index1:
+        #                 #如果最小值有多个相同的值，则应该使用这种方法
+        #                 if len(np.where(E_sorted_list[0]==self.E)[0])>1:
+        #                     index2 = np.where(E_sorted_list[0]==self.E)[0][1]
+        #                 else:
+        #                     index2=np.where(E_sorted_list[1]==self.E)[0][0]
+        #         else:
+        #             index2=np.where(E_sorted_list[-1]==self.E)[0][0]
+        #             if index2 == index1:
+        #                 if len(np.where(E_sorted_list[-1]==self.E)[0])>1:
+        #                     index2 = np.where(E_sorted_list[-1]==self.E)[0][1] 
+        #                 else:
+        #                     index2=np.where(E_sorted_list[-2]==self.E)[0][0]              
                 
 
 
@@ -339,8 +372,9 @@ if __name__=="__main__":
     x=np.array([[1,2],[2,3],[3,3],[2,1],[3,2]])
 
     y=np.array([1,1,1,-1,-1])
-
-    svm=SVM(1)
+    # x = np.array([[1,2],[2,1]])
+    # y = np.array([1,-1])
+    svm=SVM(10)
     svm.fit(x,y)
     plt.scatter(x[:,0],x[:,1])
     x=np.linspace(0,4,100)

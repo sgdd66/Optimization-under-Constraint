@@ -212,7 +212,7 @@ class SVM(object):
         for i in range(self.sampleSum):
             kkt[i]=self.KKT(i)
         kktSorted=np.sort(kkt)    
-        E_sorted_list=np.sort(self.E)        
+           
 
         #根据kktSorted求得对应的index序列
         index_list = []
@@ -239,59 +239,7 @@ class SVM(object):
                 continue
             if np.abs(self.E[i]-e1)>max_error_diff:
                 index2 = i
-        # if e1>0:
-        #     index2=np.where(E_sorted_list[0]==self.E)[0][0]
-        #     if index2 == index1:
-        #         #如果最小值有多个相同的值，则应该使用这种方法
-        #         if len(np.where(E_sorted_list[0]==self.E)[0])>1:
-        #             index2 = np.where(E_sorted_list[0]==self.E)[0][1]
-        #         else:
-        #             index2=np.where(E_sorted_list[1]==self.E)[0][0]
-        # else:
-        #     index2=np.where(E_sorted_list[-1]==self.E)[0][0]
-        #     if index2 == index1:
-        #         if len(np.where(E_sorted_list[-1]==self.E)[0])>1:
-        #             index2 = np.where(E_sorted_list[-1]==self.E)[0][1] 
-        #         else:
-        #             index2=np.where(E_sorted_list[-2]==self.E)[0][0] 
-
-        # #如果选择的优化变量与之前两轮的优化变量相同，将会重新选择
-        # if len(self.variable)>2:
-        #     last_index1 = self.variable[-1]
-        #     last_index2 = self.variable[-2]
-        #     if index1 == last_index1[0] and index2== last_index1[1] and \
-        #         index1 == last_index2[0] and index2 == last_index2[1]:
-
-        #         index_list.remove(index1)
-        #         index1 = np.nan
-        #         for i in range(len(index_list)-1,-1,-1):
-        #             index = index_list[i]
-        #             if self.alpha[index]>0 and self.alpha[index]<self.C and kkt[index]!=0:
-        #                 index1 = index
-        #                 break
-        #         if index1 is np.nan:
-        #             index1 = index_list[-1]
-
-        #         e1=self.E[index1]
-                
-        #         if e1>0:
-        #             index2=np.where(E_sorted_list[0]==self.E)[0][0]
-        #             if index2 == index1:
-        #                 #如果最小值有多个相同的值，则应该使用这种方法
-        #                 if len(np.where(E_sorted_list[0]==self.E)[0])>1:
-        #                     index2 = np.where(E_sorted_list[0]==self.E)[0][1]
-        #                 else:
-        #                     index2=np.where(E_sorted_list[1]==self.E)[0][0]
-        #         else:
-        #             index2=np.where(E_sorted_list[-1]==self.E)[0][0]
-        #             if index2 == index1:
-        #                 if len(np.where(E_sorted_list[-1]==self.E)[0])>1:
-        #                     index2 = np.where(E_sorted_list[-1]==self.E)[0][1] 
-        #                 else:
-        #                     index2=np.where(E_sorted_list[-2]==self.E)[0][0]              
-                
-
-
+          
         return index1,index2
 
     def KKT(self,i):
@@ -322,6 +270,82 @@ class SVM(object):
                 return 0
             else:
                 return np.abs(y*g-1)
+
+    def show(self):
+        '''
+        展示SMO算法求解的结果，仅限于二维展示
+        '''
+        calc_outcome = self.E+self.y
+        mark_outcome = self.y
+
+        #正例支持向量
+        support_vector_positive = []
+        #反例支持向量
+        support_vector_negative = []
+
+        #正例判对
+        pos_true = []
+        #正例判错
+        pos_false = []
+        #反例判对
+        neg_true = []
+        #反例判错
+        neg_false = []
+
+        #落在分割超平面上的点
+        mid = []
+
+
+        for i in range(self.sampleSum):
+            #支持向量
+            if self.alpha[i]>0 and self.alpha[i]<self.C:
+                if calc_outcome[i]>0:
+                    support_vector_positive.append(self.x[i,:])
+                else:
+                    support_vector_negative.append(self.x[i,:])
+            else:
+                #非支持向量
+                if calc_outcome[i]==0:
+                    mid.append(self.x[i,:])
+                elif mark_outcome[i]>0 and calc_outcome[i]>0:
+                    pos_true.append(self.x[i,:])
+                elif mark_outcome[i]>0 and calc_outcome[i]<0:
+                    pos_false.append(self.x[i,:])
+                elif mark_outcome[i]<0 and calc_outcome[i]>0:
+                    neg_false.append(self.x[i,:])
+                elif mark_outcome[i]<0 and calc_outcome[i]<0:
+                    neg_true.append(self.x[i,:])
+
+        if len(support_vector_negative)>0:
+            support_vector_negative = np.array(support_vector_negative)
+            plt.scatter(support_vector_negative[:,0],support_vector_negative[:,1],c='b',marker='v')
+        if len(support_vector_positive)>0:
+            support_vector_positive = np.array(support_vector_positive)
+            plt.scatter(support_vector_positive[:,0],support_vector_positive[:,1],c='r',marker='v')
+        if len(mid)>0:
+            mid = np.array(mid)
+            plt.scatter(mid[:,0],mid[:,1],c='k',marker='o')
+        if len(pos_false)>0:
+            pos_false = np.array(pos_false)
+            plt.scatter(pos_false[:,0],pos_false[:,1],c='r',marker='x')        
+        if len(pos_true)>0:
+            pos_true = np.array(pos_true)
+            plt.scatter(pos_true[:,0],pos_true[:,1],c='r',marker='.')
+        if len(neg_false)>0:
+            neg_false = np.array(neg_false)
+            plt.scatter(neg_false[:,0],neg_false[:,1],c='b',marker='x')
+        if len(neg_true)>0:
+            neg_true = np.array(neg_true)
+            plt.scatter(neg_true[:,0],neg_true[:,1],c='b',marker='.')            
+
+        plt.show()
+
+def test_Sample0():
+    x=np.array([[1,2],[2,3],[3,3],[2,1],[3,2]])
+    y=np.array([1,1,1,-1,-1])
+    y=y.reshape((-1,1))
+    sample = np.hstack((x,y))
+    np.savetxt('./Data/sample0.csv',sample,delimiter=',')
 
 def test_Sample1():
     '''测试样本1：正例与反例线性可分'''
@@ -367,17 +391,14 @@ def test_Sample1():
 
 
 if __name__=="__main__":
-    # test_Sample1()
+    # test_Sample0()
+    path = './Data/sample1.csv'
+    data = np.loadtxt(path,delimiter=',')
 
-    x=np.array([[1,2],[2,3],[3,3],[2,1],[3,2]])
-
-    y=np.array([1,1,1,-1,-1])
-    # x = np.array([[1,2],[2,1]])
-    # y = np.array([1,-1])
+    x = data[:,0:2]
+    y = data[:,2]
     svm=SVM(10)
     svm.fit(x,y)
-    plt.scatter(x[:,0],x[:,1])
-    x=np.linspace(0,4,100)
-    y=(svm.w[0]*x+svm.b)/-svm.w[1]
-    plt.plot(x,y)
-    plt.show()
+
+    svm.show()
+

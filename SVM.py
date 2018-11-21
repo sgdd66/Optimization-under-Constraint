@@ -90,7 +90,11 @@ class SVM(object):
         +1 ：正例\n
         -1 ：负例
         '''
-        y=self.Kernal(self.w,x)+self.b
+
+        kernal = np.zeros(self.sampleSum)
+        for i in range(self.sampleSum):
+            kernal[i]=self.Kernal(self.x[i,:],x)
+        y=np.sum(self.alpha*self.y*kernal)+self.b
         if y>0:
             return 1
         else:
@@ -112,59 +116,112 @@ class SVM(object):
         while(not self.canStop()):
             if len(self.variable)>self.maxIter:
                 break
-            #更新两个变量的alpha
+
             i1,i2=self.getVariableIndex()
-            self.variable.append([i1,i2])
-            K11=self.Gram[i1,i1]
-            K22=self.Gram[i2,i2]
-            K12=self.Gram[i1,i2]
-            eta=K11+K22-2*K12
-            alpha1_old=self.alpha[i1]
-            alpha2_old=self.alpha[i2]
-            y1=self.y[i1]
-            y2=self.y[i2]
-            if(y1==y2):
-                L=np.max([0,alpha2_old+alpha1_old-self.C])
-                H=np.min([self.C,alpha2_old+alpha1_old])
+            self.refresh(i1,i2)
+
+            #如果目标值没有足够下降，更换index2
+            if len(self.aim)<2:
+                continue
             else:
-                L=np.max([0,alpha2_old-alpha1_old])
-                H=np.min([self.C,self.C+alpha2_old-alpha1_old])
-            E1=self.E[i1]
-            E2=self.E[i2]
-            alpha2_new=alpha2_old+y2*(E1-E2)/eta
-            if alpha2_new>H:
-                alpha2_new=H
-            elif alpha2_new<L:
-                alpha2_new=L
-            alpha1_new=alpha1_old+y1*y2*(alpha2_old-alpha2_new)
-            self.alpha[i1]=alpha1_new
-            self.alpha[i2]=alpha2_new
-            #更新系数b
-            b1_new=-E1-y1*K11*(alpha1_new-alpha1_old)-y2*K12*(alpha2_new-alpha2_old)+self.b
-            b2_new=-E2-y1*K12*(alpha1_new-alpha1_old)-y2*K22*(alpha2_new-alpha2_old)+self.b
-            if alpha1_new>0 and alpha1_new<self.C:
-                self.b = b1_new
-            elif alpha2_new>0 and alpha2_new<self.C:
-                self.b = b2_new
-            else:
-                self.b=(b1_new+b2_new)/2
+                #支持向量索引
+                sv_index = np.where(self.alpha!=0)[0]      
+                #非支持向量索引 
+                nsv_index = np.where(self.alpha==0)[0]
+                j1 = 0
 
-            #更新系数E
-            for i in range(self.sampleSum):
-                self.E[i]=self.g(i)-self.y[i]
+            while(self.aim[-2]-self.aim[-1]<10**-5):
+
+                #首先遍历支持向量，然后遍历非支持向量
+                if j1 < len(sv_index):
+                    if sv_index[j1]==i1:
+                        j1+=1
+                        continue
+                    else:
+                        i2 = sv_index[j1]
+                        self.refresh(i1,i2)
+                        j1+=1
+                elif j1 <= self.sampleSum:
+                    j2 = j1-len(sv_index)
+                    if nsv_index[j2]==i1:
+                        j1+=1
+                        continue
+                    else:
+                        i2 = nsv_index[j2]
+                        self.refresh(i1,i2)
+                        j1+=1
+                else:
+                    print("所有变量均不能使第一变量{0}充分下降，更换变量".format(i1))
+
+        self.variable.append([i1,i2])
+
+        # if len(self.aim)>20 and self.aim[-2]-self.aim[-1]<10**-5:
+        #     j = 0
+        #     last20_variable = self.variable[-20:]
+        #     #获取支持向量的索引
+
+        #     while last20_variable.count([index1,index2])>0:
+        #         #如果所有的支持向量不能使目标函数下降，从全集中选择index2
+        #         if j == len(sv_index): 
+        #             break
+        #         if sv_index[j]==index1:
+        #             j+=1
+        #             continue
+        #         else:
+        #             index2 = sv_index[j]
+        #             j+=1
+
+    def refresh(self,i1,i2):
+        '''根据i1，i2更新所有参数'''
+
+        K11=self.Gram[i1,i1]
+        K22=self.Gram[i2,i2]
+        K12=self.Gram[i1,i2]
+        eta=K11+K22-2*K12
+        alpha1_old=self.alpha[i1]
+        alpha2_old=self.alpha[i2]
+        y1=self.y[i1]
+        y2=self.y[i2]
+        if(y1==y2):
+            L=np.max([0,alpha2_old+alpha1_old-self.C])
+            H=np.min([self.C,alpha2_old+alpha1_old])
+        else:
+            L=np.max([0,alpha2_old-alpha1_old])
+            H=np.min([self.C,self.C+alpha2_old-alpha1_old])
+        E1=self.E[i1]
+        E2=self.E[i2]
+        alpha2_new=alpha2_old+y2*(E1-E2)/eta
+        if alpha2_new>H:
+            alpha2_new=H
+        elif alpha2_new<L:
+            alpha2_new=L
+        alpha1_new=alpha1_old+y1*y2*(alpha2_old-alpha2_new)
+        self.alpha[i1]=alpha1_new
+        self.alpha[i2]=alpha2_new
+        #更新系数b
+        b1_new=-E1-y1*K11*(alpha1_new-alpha1_old)-y2*K12*(alpha2_new-alpha2_old)+self.b
+        b2_new=-E2-y1*K12*(alpha1_new-alpha1_old)-y2*K22*(alpha2_new-alpha2_old)+self.b
+        if alpha1_new>0 and alpha1_new<self.C:
+            self.b = b1_new
+        elif alpha2_new>0 and alpha2_new<self.C:
+            self.b = b2_new
+        else:
+            self.b=(b1_new+b2_new)/2
+
+        #更新系数E
+        for i in range(self.sampleSum):
+            self.E[i]=self.g(i)-self.y[i]
 
 
-            aim = 0
-            for i in range(self.sampleSum):
-                for j in range(self.sampleSum):
-                    aim += self.alpha[i] * self.alpha[j] * self.y[i] * self.y[j] * self.Gram[i, j]
-            aim /= 2.0
-            aim -= np.sum(self.alpha)
-            self.aim.append(aim)
+        aim = 0
+        for i in range(self.sampleSum):
+            for j in range(self.sampleSum):
+                aim += self.alpha[i] * self.alpha[j] * self.y[i] * self.y[j] * self.Gram[i, j]
+        aim /= 2.0
+        aim -= np.sum(self.alpha)
+        self.aim.append(aim)
 
-            print(self.variable[-1],self.aim[-1])
-        for i in range(self.x.shape[1]):
-            self.w[i]=np.sum(self.alpha*self.y*self.x[:,i])
+        print([i1,i2],self.aim[-1])
 
     def canStop(self):
         """
@@ -180,6 +237,7 @@ class SVM(object):
         kkt=np.zeros((self.sampleSum))
         for i in range(self.sampleSum):
             kkt[i]=self.KKT(i)
+        self.kkt = kkt
         if np.sum(np.abs(kkt))>0.00001:
             return False
         return True
@@ -208,28 +266,36 @@ class SVM(object):
         """
 
 
-        kkt=np.zeros(self.sampleSum)
-        for i in range(self.sampleSum):
-            kkt[i]=self.KKT(i)
+        kkt=self.kkt
         kktSorted=np.sort(kkt)    
-           
 
         #根据kktSorted求得对应的index序列
         index_list = []
         while len(index_list)<self.sampleSum:
             num = len(index_list)
-            index_list.extend(np.where(kkt==kktSorted[num])[0])
+            index_list.extend(np.where(kkt==kktSorted[num])[0])   
 
-           
         #从支持向量中选择kkt违反条件最严重的
         index1 = np.nan
         for i in range(len(index_list)-1,-1,-1):
             index = index_list[i]
-            if self.alpha[index]>0 and self.alpha[index]<self.C and kkt[index]!=0:
+            if self.alpha[index]>0 and self.alpha[index]<self.C and kkt[index]>10**-5:
                 index1 = index
                 break
         if index1 is np.nan:
             index1 = index_list[-1]
+        
+        #如果目标函数没有充分下降，而且index1和上一轮相同，更换index1
+        if len(self.aim)>5 and self.aim[-5]-self.aim[-1]<10**-5 and index1==self.variable[-1][0]:
+            index_list.remove(index1)
+            index1 = np.nan
+            for i in range(len(index_list)-1,-1,-1):
+                index = index_list[i]
+                if self.alpha[index]>0 and self.alpha[index]<self.C and kkt[index]>10**-5:
+                    index1 = index
+                    break
+            if index1 is np.nan:
+                index1 = index_list[-1]
 
         e1=self.E[index1]
 
@@ -239,8 +305,29 @@ class SVM(object):
                 continue
             if np.abs(self.E[i]-e1)>max_error_diff:
                 index2 = i
-          
+        
+
+        # #如果目标值没有足够下降，更换index2
+        # if len(self.aim)>20 and self.aim[-2]-self.aim[-1]<10**-5:
+        #     j = 0
+        #     last20_variable = self.variable[-20:]
+        #     #获取支持向量的索引
+        #     sv_index = np.where(self.alpha!=0)[0]
+        #     sv_index = np.sort(sv_index)
+        #     while last20_variable.count([index1,index2])>0:
+        #         #如果所有的支持向量不能使目标函数下降，从全集中选择index2
+        #         if j == len(sv_index): 
+        #             break
+        #         if sv_index[j]==index1:
+        #             j+=1
+        #             continue
+        #         else:
+        #             index2 = sv_index[j]
+        #             j+=1
+
+
         return index1,index2
+
 
     def KKT(self,i):
         '''
@@ -338,6 +425,15 @@ class SVM(object):
             neg_true = np.array(neg_true)
             plt.scatter(neg_true[:,0],neg_true[:,1],c='b',marker='.')            
 
+        x_min = min(self.x[:,0])
+        x_max = max(self.x[:,1])
+        x = np.linspace(x_min,x_max,100)
+        w = np.zeros(2)
+        for i in range(self.sampleDim):
+            w[i] = np.sum(self.alpha*self.y*self.x[:,i])
+        y = (w[0]*x+svm.b)/-w[1]
+        plt.plot(x,y)
+
         plt.show()
 
 def test_Sample0():
@@ -397,8 +493,9 @@ if __name__=="__main__":
 
     x = data[:,0:2]
     y = data[:,2]
-    svm=SVM(10)
-    svm.fit(x,y)
+    svm=SVM(100)
+    svm.fit(x,y,maxIter=500)
 
     svm.show()
+
 

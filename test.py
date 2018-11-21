@@ -301,11 +301,20 @@ def test14():
 
 def test15():
     '''以负数为索引号可以逆向查找'''
-    a = [[-1,2],[2,4]]
-    print(a[-1])
+    a = [[-1,2],[2,4],[-1,3],[-1,2]]
+    print(a[-2:-1])
     print(a[-2])
+
+def test16():
+    '''测试list的count函数'''
+    a = [[-1,2],[2,4],[-1,3],[-1,2]]
+    print(a.count(2))
+    a.remove([-1,2])
+    print(a)
+
 if __name__=='__main__':
-    test15()
+    test16()
+
 
 
 

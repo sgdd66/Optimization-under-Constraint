@@ -23,18 +23,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 class SVM(object):
+    """
+    初始化函数
 
+    输入：\n
+    kernal ： 核函数，如果不输入默认为欧式空间内积计算方法\n
+    C ： 误分类惩罚因子
+
+    输出：\n
+    无返回
+    """
     def __init__(self,C,kernal=None):
-        """
-        初始化函数
 
-        输入：\n
-        kernal ： 核函数，如果不输入默认为欧式空间内积计算方法\n
-        C ： 误分类惩罚因子
-
-        输出：\n
-        无返回
-        """
         self.C=C
         if(kernal is None):
             self.Kernal=lambda x,y:np.sum(x*y)
@@ -65,17 +65,20 @@ class SVM(object):
                     Gram[j, i] = Gram[i, j]
         self.Gram=Gram
         self.sampleDim=x.shape[1]
-        self.w=np.zeros(self.sampleDim)
         self.b=0
         self.x=x
         self.y=y
         self.alpha = np.zeros(self.sampleSum)
         self.E=np.zeros(self.sampleSum)
+        self.kkt=np.zeros((self.sampleSum))
         for i in range(self.sampleSum):
             self.E[i]=self.g(i)-self.y[i]
         
         self.maxIter = maxIter
-
+        #观测变量，存储每一轮迭代目标函数的值
+        self.aim=[]
+        #观测变量，存储每一迭代选择的变量索引
+        self.variable=[]
         #使用SMO算法求解
         self.SMO()
 
@@ -108,14 +111,8 @@ class SVM(object):
 
         输出：无
         '''
-        #观测变量，存储每一轮迭代目标函数的值
-        self.aim=[]
-        #观测变量，存储每一迭代选择的变量索引
-        self.variable=[]
 
         while(not self.canStop()):
-            if len(self.variable)>self.maxIter:
-                break
 
             i1,i2=self.getVariableIndex()
             self.refresh(i1,i2)
@@ -141,7 +138,7 @@ class SVM(object):
                         i2 = sv_index[j1]
                         self.refresh(i1,i2)
                         j1+=1
-                elif j1 <= self.sampleSum:
+                elif j1 < self.sampleSum:
                     j2 = j1-len(sv_index)
                     if nsv_index[j2]==i1:
                         j1+=1
@@ -152,28 +149,152 @@ class SVM(object):
                         j1+=1
                 else:
                     print("所有变量均不能使第一变量{0}充分下降，更换变量".format(i1))
+                    break
 
-        self.variable.append([i1,i2])
+        self.saveArg()
 
-        # if len(self.aim)>20 and self.aim[-2]-self.aim[-1]<10**-5:
-        #     j = 0
-        #     last20_variable = self.variable[-20:]
-        #     #获取支持向量的索引
+    def saveArg(self):
+        '''存储计算需要的内部参数，方便训练与模型恢复'''
+        #获取当前时间作为文件名
+        import time
+        timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+        path = './Data/SVM_Argument_{0}.txt'.format(timemark)
+        with open(path,'w') as file:
+            file.write('C:%.18e\n'%self.C)
+            file.write('sample sum:{0}\n'.format(self.sampleSum))
+            file.write('sample dimension:{0}\n'.format(self.sampleDim))
 
-        #     while last20_variable.count([index1,index2])>0:
-        #         #如果所有的支持向量不能使目标函数下降，从全集中选择index2
-        #         if j == len(sv_index): 
-        #             break
-        #         if sv_index[j]==index1:
-        #             j+=1
-        #             continue
-        #         else:
-        #             index2 = sv_index[j]
-        #             j+=1
+            file.write('x:\n')
+            for i in range(self.sampleSum):
+                for j in range(self.sampleDim):
+                    file.write('%.18e,'%self.x[i,j])
+                file.write('\n') 
+
+            file.write('y:\n')
+            for j in range(self.sampleSum):
+                file.write("%d\n"%self.y[j])
+
+            file.write('Gram matrix:\n')
+            for i in range(self.sampleSum):
+                for j in range(self.sampleSum):
+                    file.write('%.18e,'%(self.Gram[i,j]))
+                file.write('\n')
+
+            file.write('b:%.18e\n'%(self.b))
+
+            file.write('alpha:\n')
+            for i in range(self.sampleSum):
+                file.write('%d : %.18e\n'%(i,self.alpha[i]))
+
+
+            file.write('E:\n')
+            for i in range(self.sampleSum):
+                file.write('%d : %.18e\n'%(i,self.E[i]))
+
+
+            file.write('kkt:\n')
+            for i in range(self.sampleSum):
+                file.write('%d : %.18e\n'%(i,self.kkt[i]))
+      
+
+            file.write('aim:%d\n'%len(self.aim))
+            for i in range(len(self.aim)):
+                file.write('%.18e\n'%self.aim[i])
+
+            file.write('variable:%d\n'%len(self.variable))
+            for i in range(len(self.variable)):
+                file.write('%d,%d\n'%(self.variable[i][0],self.variable[i][1]))
+
+
+
+
+        # #初始化变量
+
+        # self.sampleSum = x.shape[0]
+        # self.sampleDim=x.shape[1]
+
+        # self.x=x
+        # self.y=y
+        # self.Gram=Gram
+        
+        # self.b=0
+
+        # self.alpha = np.zeros(self.sampleSum)
+        # self.E=np.zeros(self.sampleSum)
+        # self.kkt=np.zeros((self.sampleSum))
+ 
+
+        # #观测变量，存储每一轮迭代目标函数的值
+        # self.aim=[]
+        # #观测变量，存储每一迭代选择的变量索引
+        # self.variable=[]
+
+    def retrain(self,path,maxIter=100):
+        '''读取参数文件重新训练\n
+
+        输入：\n
+        path : 参数文件的文件路径\n
+        maxIter : 新一轮训练的最大迭代次数\n
+
+        输出：无\n
+        '''
+        import re 
+        with open(path,'r') as file:
+            texts = file.readlines()
+
+
+            reg_int = re.compile(r'-?\d+')
+            reg_float = re.compile(r'-?\d\.\d+e[\+,-]\d+')      
+
+            self.C = float(reg_float.search(texts[0]).group(0))
+            self.sampleSum = int(reg_int.search(texts[1]).group(0))
+            self.sampleDim = int(reg_int.search(texts[2]).group(0))
+
+            pos = 4
+            self.x = np.zeros((self.sampleSum,self.sampleDim))
+            for i in range(self.sampleSum):
+                text_list = reg_float.findall(texts[pos+i])
+                for j in range(self.sampleDim):
+                    self.x[i,j] = float(text_list[j])
+            
+            pos = pos+self.sampleSum+1
+            self.y = np.zeros(self.sampleSum)
+            for i in range(self.sampleSum):
+                self.y[i] = int(reg_int.search(texts[pos+i]).group(0))
+                          
+            pos = pos+self.sampleSum+1
+            self.Gram = np.zeros((self.sampleSum,self.sampleSum))
+            for i in range(self.sampleSum):
+                text_list = reg_float.findall(texts[pos+i])
+                for j in range(self.sampleSum):
+                    self.Gram[i,j] = float(text_list[j])    
+
+            pos = pos+self.sampleSum
+            self.b = float(reg_float.search(texts[pos]).group(0))        
+
+            pos += 2
+            self.alpha = np.zeros(self.sampleSum)
+            for i in range(self.sampleSum):
+                self.alpha[i] = float(reg_float.search(texts[pos+i]).group(0))
+           
+            pos += self.sampleSum+1
+            self.E = np.zeros(self.sampleSum)
+            for i in range(self.sampleSum):
+                self.E[i] = float(reg_float.search(texts[pos+i]).group(0))
+
+            pos += self.sampleSum+1
+            self.kkt = np.zeros(self.sampleSum)
+            for i in range(self.sampleSum):
+                self.kkt[i] = float(reg_float.search(texts[pos+i]).group(0))
+
+        self.variable = []
+        self.aim = []
+        self.maxIter = maxIter
+        self.SMO()
 
     def refresh(self,i1,i2):
         '''根据i1，i2更新所有参数'''
-
+        self.variable.append([i1,i2])
         K11=self.Gram[i1,i1]
         K22=self.Gram[i2,i2]
         K12=self.Gram[i1,i2]
@@ -233,14 +354,18 @@ class SVM(object):
         false : 不可终止\n
         true : 可终止\n
         """
+        
+        if len(self.aim)>=self.maxIter:
+            print("因达到最大迭代次数，计算终止。")
+            return True
 
-        kkt=np.zeros((self.sampleSum))
         for i in range(self.sampleSum):
-            kkt[i]=self.KKT(i)
-        self.kkt = kkt
-        if np.sum(np.abs(kkt))>0.00001:
+            self.kkt[i]=self.KKT(i)
+        if np.sum(np.abs(self.kkt))>0.001:
             return False
-        return True
+        else:
+            print("满足kkt条件，达到最优值。当前迭代次数：{0}".format(len(self.aim)))
+            return True
 
     def g(self,i):
         '''
@@ -305,29 +430,9 @@ class SVM(object):
                 continue
             if np.abs(self.E[i]-e1)>max_error_diff:
                 index2 = i
-        
-
-        # #如果目标值没有足够下降，更换index2
-        # if len(self.aim)>20 and self.aim[-2]-self.aim[-1]<10**-5:
-        #     j = 0
-        #     last20_variable = self.variable[-20:]
-        #     #获取支持向量的索引
-        #     sv_index = np.where(self.alpha!=0)[0]
-        #     sv_index = np.sort(sv_index)
-        #     while last20_variable.count([index1,index2])>0:
-        #         #如果所有的支持向量不能使目标函数下降，从全集中选择index2
-        #         if j == len(sv_index): 
-        #             break
-        #         if sv_index[j]==index1:
-        #             j+=1
-        #             continue
-        #         else:
-        #             index2 = sv_index[j]
-        #             j+=1
 
 
         return index1,index2
-
 
     def KKT(self,i):
         '''
@@ -425,15 +530,19 @@ class SVM(object):
             neg_true = np.array(neg_true)
             plt.scatter(neg_true[:,0],neg_true[:,1],c='b',marker='.')            
 
-        x_min = min(self.x[:,0])
-        x_max = max(self.x[:,1])
-        x = np.linspace(x_min,x_max,100)
-        w = np.zeros(2)
-        for i in range(self.sampleDim):
-            w[i] = np.sum(self.alpha*self.y*self.x[:,i])
-        y = (w[0]*x+svm.b)/-w[1]
-        plt.plot(x,y)
+        # x_min = min(self.x[:,0])
+        # x_max = max(self.x[:,1])
+        # x = np.linspace(x_min,x_max,100)
+        # w = np.zeros(2)
+        # for i in range(self.sampleDim):
+        #     w[i] = np.sum(self.alpha*self.y*self.x[:,i])
+        # y = (w[0]*x+svm.b)/-w[1]
+        # plt.plot(x,y)
 
+        import time
+        timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+        path = './Data/SVM_Photo_{0}.png'.format(timemark)
+        plt.savefig(path)
         plt.show()
 
 def test_Sample0():
@@ -483,19 +592,92 @@ def test_Sample1():
     sample = np.vstack((sample_negative,sample_positive))
     np.savetxt('./Data/sample1.csv',sample,delimiter=',')
 
+def test_Sample2():
+    '''测试样本2，正例与反例线性不可分'''
+    x1 = 3
+    y1 = 3
+
+    x2 = 4
+    y2 = 4
+
+    R1 = 1
+    R2 = 1
+
+    R1_list = np.random.uniform(0,1,50)*R1
+    R2_list = np.random.uniform(0,1,50)*R2
+
+    angle1_list = np.random.uniform(0,1,50)*2*np.pi
+    angle2_list = np.random.uniform(0,1,50)*2*np.pi
+
+    x1_list = R1_list*np.cos(angle1_list)+x1
+    y1_list = R1_list*np.sin(angle1_list)+y1
+
+    x2_list = R2_list*np.cos(angle2_list)+x2
+    y2_list = R2_list*np.sin(angle2_list)+y2 
+
+    fig = plt.figure(0)
+    ax1 = fig.add_subplot(111)
+    ax1.scatter(x1_list,y1_list)
+    ax1.scatter(x2_list,y2_list)
+    plt.show()
+
+    x1_list = x1_list.reshape((-1,1))
+    y1_list = y1_list.reshape((-1,1))
+    sample_positive = np.hstack((x1_list,y1_list,np.zeros((50,1))+1))
+
+    x2_list = x2_list.reshape((-1,1))
+    y2_list = y2_list.reshape((-1,1))
+    sample_negative = np.hstack((x2_list,y2_list,np.zeros((50,1))-1))
+
+    sample = np.vstack((sample_negative,sample_positive))
+    np.savetxt('./Data/sample2.csv',sample,delimiter=',')  
     
+def test_Sample3():
+    '''测试样本3，正例与反例非线性可分'''
+    import DOE
+    min = [0,0]
+    max = [2,2]
+    latinSamples = DOE.LatinHypercube(dimension=2,num=100,min=min,max=max)
+    samples = latinSamples.realSamples
+    mark = np.zeros(100)
+    f = lambda x:-x**2+2*x+0.3
+    for index,sample in enumerate(samples):
+        if sample[1]>f(sample[0]):
+            mark[index]=1
+        else:
+            mark[index]=-1
+
+    sample_pos = samples[np.where(mark==1)[0],:]
+    sample_neg = samples[np.where(mark==-1)[0],:]
+    plt.scatter(sample_pos[:,0],sample_pos[:,1])
+    plt.scatter(sample_neg[:,0],sample_neg[:,1])
+    x = np.linspace(min[0],max[0],100)
+    y = f(x)  
+    plt.plot(x,y)
+    plt.show()
+
+    mark = mark.reshape((-1,1))
+    samples = np.hstack((samples,mark))
+    np.savetxt('./Data/sample3.csv',samples,delimiter=',')
+
+
 
 
 if __name__=="__main__":
-    # test_Sample0()
-    path = './Data/sample1.csv'
-    data = np.loadtxt(path,delimiter=',')
+    # test_Sample3()
 
-    x = data[:,0:2]
-    y = data[:,2]
-    svm=SVM(100)
-    svm.fit(x,y,maxIter=500)
+    f=lambda x,y:(np.dot(x,y)+1)**3
 
+    # path = './Data/sample3.csv'
+    # data = np.loadtxt(path,delimiter=',')
+    # x = data[:,0:2]
+    # y = data[:,2]
+    # svm=SVM(1,kernal=f)
+    # svm.fit(x,y,maxIter=1000)
+    # svm.show()
+
+    svm = SVM(1,kernal=f)
+    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM_Argument_2018-11-26_17-17-04.txt'
+    svm.retrain(path,maxIter=5000)
     svm.show()
-
 

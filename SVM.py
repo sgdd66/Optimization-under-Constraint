@@ -2,7 +2,7 @@
 # Copyright (c) 2018 西安交通大学
 # All rights reserved
 # 
-# 文件名称：test.py
+# 文件名称：SVM.py
 # 
 # 摘    要：支持向量机
 # 

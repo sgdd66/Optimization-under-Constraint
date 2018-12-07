@@ -19,7 +19,7 @@
 # -*- coding: utf-8 -*-
 
 from tvtk.tools import tvtk_doc,ivtk
-from tvtk.api import tvtk,GUI
+from tvtk.api import tvtk
 import numpy as np
 from mayavi import mlab
 from traits.api import HasTraits ,Delegate,Instance,Int,Str
@@ -254,8 +254,7 @@ class DataVisual(object):
     #surf函数
     def test13(self):
 
-        data=np.loadtxt('C:\\Users\\Administrator\\Documents\\GitHub\\DifferentialEvolution\\map.csv',
-                        delimiter=',')
+        data=np.loadtxt('./Data/map.csv', delimiter=',')
         row=data.shape[0]
         column=data.shape[1]
         x,y=np.mgrid[0:row:1,0:column:1]
@@ -269,14 +268,16 @@ class DataVisual(object):
 
     #contour函数
     def test14(self):
-        data=np.loadtxt('C:\\Users\\Administrator\\Documents\\GitHub\\DifferentialEvolution\\map.csv',
-                        delimiter=',')
+        data=np.loadtxt('./Data/map.csv', delimiter=',')
         row=data.shape[0]
         column=data.shape[1]
+        x,y=np.mgrid[0:row:1,0:column:1]
+
         x,y=np.mgrid[0:row:1,0:column:1]
         mlab.contour_surf(x,y,data,contours=100)
         mlab.show()
 
+    #向量场绘制
     def test15(self):
         from numpy import mgrid,sqrt,sin,zeros_like
         x, y, z = mgrid[-0:3:0.6, -0:3:0.6, 0:3:0.3]
@@ -343,20 +344,38 @@ class DataVisual(object):
         v = -2 * np.sin(np.pi * y) * np.cos(2 * np.pi * z)
         w = np.cos(np.pi * x) * np.sin(np.pi * z) + np.cos(np.pi * y) * np.sin(2 * np.pi * z)
 
-        #降采样
-        src=mlab.pipeline.vector_field(u,v,w)
-        magnitude=mlab.pipeline.extract_vector_norm(src)
-        # mlab.pipeline.iso_surface(magnitude,contours=[1.9])
+        #以下是四种不同的向量场绘制函数，mlab.pipeline.vector_field是对原向量场的降采样
+
+        # #1.绘制等势面，即曲面向量范数相同
+        # src=mlab.pipeline.vector_field(u,v,w)
+        # magnitude=mlab.pipeline.extract_vector_norm(src)
+        # mlab.pipeline.iso_surface(magnitude,contours=[1.9,1.8])
+
+        # #2.绘制整个向量场
+        # src=mlab.pipeline.vector_field(u,v,w)        
         # mlab.pipeline.vectors(src,mask_points=10,scale_factor=1)
+
+        # #3.仅绘制一个平面中的向量，且这个平面可以移动
+        # src=mlab.pipeline.vector_field(u,v,w)        
         # mlab.pipeline.vector_cut_plane(src,mask_points=10,scale_factor=1)
 
-        # mlab.quiver3d(u,v,w)
-        # mlab.flow(u,v,w,seed_scale=1,seed_resolution=3,integration_direction='both',seedtype='sphere')
+        # #4.绘制流线图
+        # src=mlab.pipeline.vector_field(u,v,w)
+        # magnitude=mlab.pipeline.extract_vector_norm(src)
+        # flow = mlab.pipeline.streamline(magnitude, seedtype='point',
+        #                                 seed_visible=False,
+        #                                 seed_scale=0.5,
+        #                                 seed_resolution=5 )
 
-        flow = mlab.pipeline.streamline(src, seedtype='point',
-                                        seed_visible=False,
-                                        seed_scale=0.5,
-                                        seed_resolution=5 )
+        #以下的方法针对所有数据
+
+        #显示所有数据
+        # mlab.quiver3d(u,v,w)
+
+        #绘制流线图
+        mlab.flow(u,v,w,seed_scale=1,seed_resolution=3,integration_direction='both',seedtype='sphere')
+
+
         mlab.show()
 
 '''临时存储代码，test1是kriging的测试代码，test2是ADE的测试代码
@@ -447,6 +466,32 @@ def test2():
     mlab.show()
 '''    
 
+def imshow():
+
+    #leak函数
+    def func(X):
+        x = X[0]
+        y = X[1]
+        return 3 * (1 - x) ** 2 * np.exp(-(x ** 2) - (y + 1) ** 2) - 10 * (x / 5 - x ** 3 - y ** 5) * np.exp(
+            -x ** 2 - y ** 2) - 1 / 3 * np.exp(-(x + 1) ** 2 - y ** 2)
+    min = np.array([-3, -3])
+    max = np.array([3, 3])
+
+    x, y = np.mgrid[min[0]:max[0]:100j, min[1]:max[1]:100j]
+    s = np.zeros_like(x)
+    for i in range(x.shape[0]):
+        for j in range(x.shape[1]):
+            a = [x[i, j], y[i, j]]
+            s[i, j] = func(a)
+
+    mlab.imshow(x, y, s)
+    # mlab.surf(x,y,s)
+    mlab.outline()
+    mlab.axes(xlabel='x', ylabel='y', zlabel='z')
+    mlab.show()
+
+
 if __name__=='__main__':
-    test=DataVisual()
-    test.test11()
+    # test=DataVisual()
+    # test.test18()
+    imshow()

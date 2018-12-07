@@ -83,6 +83,9 @@ def test6():
     if b > 0:
         print("compare inf with 0 ")
 
+    if -1111>-np.inf:
+        print('compare -inf with -1111')
+
 def test7():
     '''is not是合法关键字，not is不是'''
     b = 2
@@ -312,8 +315,18 @@ def test16():
     a.remove([-1,2])
     print(a)
 
+def test17():
+    '''测试np.mgrid函数'''
+    min = np.array([-5, 0])
+    max = np.array([10, 15])
+
+    x, y = np.mgrid[min[0]:max[0]:10j, min[1]:max[1]:10j]
+    print(x)
+    print(y)
+
+
 if __name__=='__main__':
-    test16()
+    test17()
 
 
 

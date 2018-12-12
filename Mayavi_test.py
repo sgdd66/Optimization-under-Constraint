@@ -440,30 +440,6 @@ def test1():
     mlab.imshow(x, y, preValue)
     mlab.show()
 
-def test2():
-    def func(X):
-        x=X[0]
-        y=X[1]
-        # return -(100*(x1**2-x2)**2+(1-x1)**2)
-        return 3*(1-x)**2*np.exp(-(x**2)-(y+1)**2)-10*(x/5-x**3-y**5)*np.exp(-x**2-y**2)-1/3*np.exp(-(x+1)**2-y**2)
-    min=np.array([-3,-3])
-    max=np.array([3,3])
-    test=ADE(min,max,100,0.5,func,True)
-    ind=test.evolution(maxGen=100)
-
-    mlab.points3d(ind.x[0],ind.x[1],ind.y,scale_factor=0.1)
-
-    x,y=np.mgrid[-3:3:100j,-3:3:100j]
-    s=np.zeros_like(x)
-    for i in range(x.shape[0]):
-        for j in range(x.shape[1]):
-            a=[x[i,j],y[i,j]]
-            s[i,j]=func(a)
-    surf=mlab.surf(x,y,s)
-    mlab.outline()
-    mlab.axes(xlabel='x',ylabel='y',zlabel='z')
-    mlab.colorbar()
-    mlab.show()
 '''    
 
 def imshow():

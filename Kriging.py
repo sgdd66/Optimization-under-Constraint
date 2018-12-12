@@ -29,19 +29,13 @@ class Kriging(object):
     '''
     初始化函数，构建对象，无参数。调用fit()函数训练模型。调用transform()返回预测值与方差。
     '''
-    def __init__(self):
-        self.p = np.zeros(d)+2
-        self.theta=np.zeros(d)
-        self.R = np.zeros((num, num))
 
-
-    def fit(self,X,Y,maxIter,min=None,max=None):
+    def fit(self,X,Y,min=None,max=None):
         """
-        输入样本点与最大迭代次数，完成kriging建模\n
+        输入样本点，完成kriging建模,默认theta=[1...1],p=[2...2]\n
         输入：\n
         X : 样本点，n行d列，d是点的维度，n是点的数目\n
-        Y : 样本点对应的值，n维向量\n
-        maxIter : 自适应差分进化执行的最大迭代次数\n        
+        Y : 样本点对应的值，n维向量\n    
         min&max : d维向量，表示拟合空间的范围，用以对数据进行归一化。如果min和max都等于none，说明点数据已经是归一化之后的数据\n
 
         输出：无，使用transform获取建模结果
@@ -58,11 +52,14 @@ class Kriging(object):
         self.min = min
         self.max = max
 
+        self.p = np.zeros(d)+2
+        self.theta=np.zeros(d)+1
+        self.R = np.zeros((num, num))
 
-        self.optimize(maxIter)
+        self.log_likelihood(self.theta)
 
 
-    def log_likelihood(self，theta):
+    def log_likelihood(self, theta):
         '''
         为了确定kriging模型中的超参数theta所设计的目标函数\n
         输入：\n
@@ -114,11 +111,12 @@ class Kriging(object):
         #     return -1000
         return lgL
 
-    def optimize(self,maxGen):
+    def optimize(self,maxGen,ADE_path=None):
         '''
         通过自适应差分进化算法，计算kriging模型中的theta参数，至于参数p设定为2。获取kriging的超参数后建立kriging的模型\n
         输入：\n
         maxGen : 差分进化计算的迭代次数\n
+        ADE_path : 差分进化算法种群参数文件，如果为空使用拉丁超立方选择种群，否则从文本中读取。
         输出：\n
         无
         '''
@@ -126,9 +124,17 @@ class Kriging(object):
         d=self.X.shape[1]
         #min和max是差分进化算法的寻优空间，也就是theta的取值空间
         min=np.zeros(d)
-        max=np.zeros(d)+100
+        max=np.zeros(d)+1
         test = ADE.ADE(min, max, 100, 0.5, self.log_likelihood,False)
-        ind = test.evolution(maxGen=maxGen)
+        if ADE_path is None:
+            ind = test.evolution(maxGen=maxGen)
+            import time
+            timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+            path = './Data/ADE_Population_Argument_{0}.txt'.format(timemark)
+            test.saveArg(path)
+        else:
+            ind = test.retrain(ADE_path,maxGen)
+            test.saveArg(ADE_path)
         self.log_likelihood(ind.x)
 
     def transform(self,x):
@@ -160,7 +166,7 @@ class Kriging(object):
         f2=np.dot(f2,r)
         varience=self.sigma2*(1-f2+f1)
 
-        return y，varience
+        return y, varience
 
     def uniform(self,points,min,max):
         """将样本点归一化
@@ -195,10 +201,83 @@ class Kriging(object):
             R[i]=-theta[i]*np.abs(point1[i]-point2[i])**p[i]
         return np.exp(np.sum(R))
 
-def writeFile(x,y,v):
-    '''将二维可展示数据写入文件，
+def writeFile(graphData=[],pointData=[],path=None):
+    '''
+    将二维可展示数据写入文件\n
+    input:\n
+    graphData : 图像数据，list类型，包含三个矩阵————
+        x : 矩阵，二维函数自变量x坐标值\n
+        y : 矩阵，二维函数自变量y坐标值\n
+        v : 矩阵，二维函数因变量v值\n
+    pointData : 点数据，list类型，用以指示采样点的位置，包含两个变量————
+        X : 矩阵，每一行代表一个样本点\n
+        Y : 向量，存储与X行对应的样本点的采样值\n
+    path : 文件路径，如果不指定按照当前时间设定文件名\n
+    output:\n
+    none
+    '''
+    if path is None:
+        #获取当前时间作为文件名
+        import time
+        timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+        path = './Data/Kriging_Model_{0}.txt'.format(timemark)
+    
+    with open(path,'w') as file:
+        num = len(graphData)
+        if num==0:
+            file.write('GraphData:%d\n'%num)
+        else:
+            file.write('GraphData:%d\n'%num)
+            for i in range(num//3):
+                x = graphData[i*3]
+                y = graphData[i*3+1]
+                v = graphData[i*3+2]
 
+                row = x.shape[0]
+                col = x.shape[1]
+                file.write('row:%d\n'%row)
+                file.write('col:%d\n'%col)        
+                
+                file.write('x:\n')
+                for i in range(row):
+                    for j in range(col):
+                        file.write('%.18e,'%x[i,j])
+                    file.write('\n') 
+                
+                file.write('y:\n')
+                for i in range(row):
+                    for j in range(col):
+                        file.write('%.18e,'%y[i,j])
+                    file.write('\n')     
 
+                file.write('v:\n')
+                for i in range(row):
+                    for j in range(col):
+                        file.write('%.18e,'%v[i,j])
+                    file.write('\n')
+
+        num = len(pointData)
+        if num==0:
+            file.write('PointData:%d\n'%num)
+        else:
+            file.write('PointData:%d\n'%num)
+            for i in range(num//2):
+                X = pointData[i*2]
+                Y = pointData[i*2+1]
+                row = X.shape[0]
+                col = X.shape[1]
+                file.write('row:%d\n'%row)
+                file.write('col:%d\n'%col)        
+                
+                file.write('X:\n')
+                for i in range(row):
+                    for j in range(col):
+                        file.write('%.18e,'%X[i,j])
+                    file.write('\n') 
+                    
+                file.write('Y:\n')
+                for i in range(row):
+                    file.write('%.18e\n'%Y[i])
 if __name__=="__main__":
 
     # leak函数
@@ -220,43 +299,46 @@ if __name__=="__main__":
     min = np.array([-5, 0])
     max = np.array([10, 15])
 
+    sampleNum=21
+
+    lh=DOE.LatinHypercube(2,sampleNum,min,max)
+    sample=lh.samples
+    realSample=lh.realSamples
+
+    value=np.zeros(sampleNum)
+    for i in range(0,sampleNum):
+        a = [realSample[i, 0], realSample[i, 1]]
+        value[i]=func(a)
+    kriging = Kriging()
+    kriging.fit(realSample, value, min, max)
+    # kriging.optimize(100)
+
+    prevalue=np.zeros_like(value)
+    varience=np.zeros_like(value)
+    for i in range(prevalue.shape[0]):
+        a = [realSample[i, 0], realSample[i, 1]]
+        prevalue[i],varience[i]=kriging.transform(np.array(a))
+    
+    print('实际值与预测值之差')
+    print(np.abs(value-prevalue))
+
     x, y = np.mgrid[min[0]:max[0]:100j, min[1]:max[1]:100j]
     s = np.zeros_like(x)
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
             a = [x[i, j], y[i, j]]
             s[i, j] = func(a)
+    
+    preValue=np.zeros_like(x)
+    varience=np.zeros_like(x)
+    for i in range(0,x.shape[0]):
+        for j in range(0,x.shape[1]):
+            a=[x[i, j], y[i, j]]
+            preValue[i,j],varience[i,j]=kriging.transform(np.array(a))
 
-    # surf = mlab.imshow(x, y, s)
-    # mlab.outline()
-    # mlab.axes(xlabel='x', ylabel='y', zlabel='z')
-
-    # sampleNum=21
-
-    # lh=DOE.LatinHypercube(2,sampleNum,min,max)
-    # sample=lh.samples
-    # realSample=lh.realSamples
-
-    # value=np.zeros(sampleNum)
-    # for i in range(0,sampleNum):
-    #     a = [realSample[i, 0], realSample[i, 1]]
-    #     value[i]=func(a)
-    # kriging = Kriging(realSample, value, min, max)
-
-
-    # prevalue=np.zeros_like(value)
-    # for i in range(prevalue.shape[0]):
-    #     a = [realSample[i, 0], realSample[i, 1]]
-    #     prevalue[i]=kriging.getY(np.array(a))
-    # print(value-prevalue)
-    # mlab.points3d(realSample[:,0],realSample[:,1],value-prevalue,scale_factor=0.3)
-
-
-    # preValue=np.zeros_like(x)
-    # for i in range(0,x.shape[0]):
-    #     for j in range(0,x.shape[1]):
-    #         a=[x[i, j], y[i, j]]
-    #         preValue[i,j]=kriging.getY(np.array(a))
-    # # mlab.points3d(x,y,preValue,scale_factor=0.1)
-    # mlab.imshow(x, y, preValue)
-    # mlab.show()
+    path = './Data/Kriging_True_Model.txt'
+    writeFile([x,y,s],[realSample,value],path)
+    path = './Data/Kriging_Predicte_Model.txt'
+    writeFile([x,y,preValue],[realSample,value],path)
+    path = './Data/Kriging_Varience_Model.txt'
+    writeFile([x,y,varience],[realSample,value],path)

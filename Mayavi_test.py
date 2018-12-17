@@ -378,96 +378,90 @@ class DataVisual(object):
 
         mlab.show()
 
-'''临时存储代码，test1是kriging的测试代码，test2是ADE的测试代码
-def test1():
-    # leak函数
-    # def func(X):
-    #     x = X[0]
-    #     y = X[1]
-    #     return 3 * (1 - x) ** 2 * np.exp(-(x ** 2) - (y + 1) ** 2) - 10 * (x / 5 - x ** 3 - y ** 5) * np.exp(
-    #         -x ** 2 - y ** 2) - 1 / 3 * np.exp(-(x + 1) ** 2 - y ** 2)
-    # min = np.array([-3, -3])
-    # max = np.array([3, 3])
 
-    # Brain函数
-    def func(x):
-        pi=3.1415926
-        y=x[1]-(5*x[0]**2)/(4*pi**2)+5*x[0]/pi-6
-        y=y**2
-        y+=10*(1-1/(8*pi))*np.cos(x[0])+10
-        return y
-    min = np.array([-5, 0])
-    max = np.array([10, 15])
+def showData(path):
+        
+    graphData = []  
+    pointData = []  
 
-    x, y = np.mgrid[min[0]:max[0]:100j, min[1]:max[1]:100j]
-    s = np.zeros_like(x)
-    for i in range(x.shape[0]):
-        for j in range(x.shape[1]):
-            a = [x[i, j], y[i, j]]
-            s[i, j] = func(a)
+    with open(path,'r') as file:
+        texts = file.readlines()
+        pos = 0 
+        import re
+        reg_int = re.compile(r'-?\d+')
+        reg_float = re.compile(r'-?\d\.\d+e[\+,-]\d+')   
+     
+        num = int(reg_int.search(texts[pos]).group(0))
+        pos+=1
 
-    surf = mlab.imshow(x, y, s)
-    mlab.outline()
-    mlab.axes(xlabel='x', ylabel='y', zlabel='z')
+        for k in range(num//3):
+            row = int(reg_int.search(texts[pos]).group(0))
+            col = int(reg_int.search(texts[pos+1]).group(0))
+            pos+=3
 
-    sampleNum=21
+            x = np.zeros((row,col))
+            for i in range(row):
+                text_list = reg_float.findall(texts[pos+i])
+                for j in range(col):
+                    x[i,j] = float(text_list[j])
+            graphData.append(x)
+            pos+=row+1
 
-    lh=DOE.LatinHypercube(2,sampleNum,min,max)
-    sample=lh.samples
-    realSample=lh.realSamples
+            y = np.zeros((row,col))
+            for i in range(row):
+                text_list = reg_float.findall(texts[pos+i])
+                for j in range(col):
+                    y[i,j] = float(text_list[j])
+            graphData.append(y)              
+            pos+=row+1
 
-    value=np.zeros(sampleNum)
-    for i in range(0,sampleNum):
-        a = [realSample[i, 0], realSample[i, 1]]
-        value[i]=func(a)
-    kriging = Kriging(realSample, value, min, max)
+            v = np.zeros((row,col))
+            for i in range(row):
+                text_list = reg_float.findall(texts[pos+i])
+                for j in range(col):
+                    v[i,j] = float(text_list[j])
+            graphData.append(v)   
+            pos+=row              
 
+        num = int(reg_int.search(texts[pos]).group(0))
+        pos+=1
 
-    prevalue=np.zeros_like(value)
-    for i in range(prevalue.shape[0]):
-        a = [realSample[i, 0], realSample[i, 1]]
-        prevalue[i]=kriging.getY(np.array(a))
-    print(value-prevalue)
-    mlab.points3d(realSample[:,0],realSample[:,1],value-prevalue,scale_factor=0.3)
+        for k in range(num//2):
+            row = int(reg_int.search(texts[pos]).group(0))
+            col = int(reg_int.search(texts[pos+1]).group(0))
+            pos+=3
 
+            x = np.zeros((row,col))
+            for i in range(row):
+                text_list = reg_float.findall(texts[pos+i])
+                for j in range(col):
+                    x[i,j] = float(text_list[j])
+            pointData.append(x)
+            pos+=row+1
 
-    preValue=np.zeros_like(x)
-    for i in range(0,x.shape[0]):
-        for j in range(0,x.shape[1]):
-            a=[x[i, j], y[i, j]]
-            preValue[i,j]=kriging.getY(np.array(a))
-    # mlab.points3d(x,y,preValue,scale_factor=0.1)
-    mlab.imshow(x, y, preValue)
-    mlab.show()
-
-'''    
-
-def imshow():
-
-    #leak函数
-    def func(X):
-        x = X[0]
-        y = X[1]
-        return 3 * (1 - x) ** 2 * np.exp(-(x ** 2) - (y + 1) ** 2) - 10 * (x / 5 - x ** 3 - y ** 5) * np.exp(
-            -x ** 2 - y ** 2) - 1 / 3 * np.exp(-(x + 1) ** 2 - y ** 2)
-    min = np.array([-3, -3])
-    max = np.array([3, 3])
-
-    x, y = np.mgrid[min[0]:max[0]:100j, min[1]:max[1]:100j]
-    s = np.zeros_like(x)
-    for i in range(x.shape[0]):
-        for j in range(x.shape[1]):
-            a = [x[i, j], y[i, j]]
-            s[i, j] = func(a)
-
-    mlab.imshow(x, y, s)
+            y = np.zeros(row)
+            for i in range(row):
+                y[i] = float(reg_float.search(text_list[j]).group(0))
+            pointData.append(y)              
+            pos+=row+1
+  
+    #当前只针对len(graphData)==3&len(pointData)==2的情况，多余的数据不显示：
+    mlab.figure(size=[1024,800])
+    graph = mlab.imshow(graphData[0],graphData[1],graphData[2])
     # mlab.surf(x,y,s)
-    mlab.outline()
-    mlab.axes(xlabel='x', ylabel='y', zlabel='z')
+    point = mlab.points3d(pointData[0][:,0],pointData[0][:,1],np.zeros(pointData[0].shape[0]),scale_factor=0.5)
+    # mlab.outline()
+    # mlab.axes(xlabel='x', ylabel='y', zlabel='z')
+    mlab.colorbar(graph,'value',orientation='vertical',label_fmt='%.2f')
+    mlab.view(0,0)
+    photoPath = re.sub(r'.txt','.png',path)
+    mlab.savefig(photoPath)
     mlab.show()
 
 
 if __name__=='__main__':
     # test=DataVisual()
     # test.test18()
-    imshow()
+    # showData('./Data/Kriging_Predicte_Model.txt')
+    # showData('./Data/Kriging_True_Model.txt')
+    showData('./Data/Kriging_Varience_Model.txt')

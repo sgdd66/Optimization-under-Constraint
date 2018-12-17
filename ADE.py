@@ -280,6 +280,7 @@ class ADE(object):
                 Inds.append(ind)
         self.Inds = Inds
         return self.evolution(maxGen,maxProportion)
+        
 if __name__=='__main__':
     def func(X):
         x=X[0]

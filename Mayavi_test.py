@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # ***************************************************************************
 # Copyright (c) 2018 西安交通大学
 # All rights reserved
@@ -15,8 +17,7 @@
 # ------------- 		-------  ------------------------  
 # ***************************************************************************
 
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+
 
 from tvtk.tools import tvtk_doc,ivtk
 from tvtk.api import tvtk
@@ -449,7 +450,19 @@ def showData(path):
     mlab.figure(size=[1024,800])
     graph = mlab.imshow(graphData[0],graphData[1],graphData[2])
     # mlab.surf(x,y,s)
-    point = mlab.points3d(pointData[0][:,0],pointData[0][:,1],np.zeros(pointData[0].shape[0]),scale_factor=0.5)
+
+    x = pointData[0][0:21,0]
+    y = pointData[0][0:21,1]
+    z = np.zeros(21)
+
+    mlab.points3d(x,y,z,scale_factor=0.25)
+
+    x = pointData[0][21:,0]
+    y = pointData[0][21:,1]
+    newPointNum = x.shape[0]
+    z = np.zeros(newPointNum)
+    c = np.linspace(1,2,newPointNum)
+    mlab.points3d(x,y,z,c,colormap="copper", scale_factor=.25)
     # mlab.outline()
     # mlab.axes(xlabel='x', ylabel='y', zlabel='z')
     mlab.colorbar(graph,'value',orientation='vertical',label_fmt='%.2f')
@@ -462,6 +475,12 @@ def showData(path):
 if __name__=='__main__':
     # test=DataVisual()
     # test.test18()
-    # showData('./Data/Kriging_Predicte_Model.txt')
-    # showData('./Data/Kriging_True_Model.txt')
-    showData('./Data/Kriging_Varience_Model.txt')
+    showData('./Data/Kriging_True_Model.txt')
+    # showData('./Data/Kriging_Predicte_Model.txt')  
+    # showData('./Data/Kriging_Varience_Model.txt')   
+    iterNum = 10
+    for i in range(iterNum-1,-1,-1):
+        path = './Data/Kriging_Predicte_Model_%d.txt'%i
+        showData(path)
+        path = './Data/Kriging_Varience_Model_%d.txt'%i        
+        showData(path)

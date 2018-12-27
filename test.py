@@ -19,6 +19,7 @@
 import sys 
 import numpy as np 
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 def test1():
@@ -324,9 +325,30 @@ def test17():
     print(x)
     print(y)
 
+def test18():
+    '''正太分布的累计分布函数与概率密度函数'''
+    from scipy.stats import norm
+    print(norm.pdf([0,0.1]))
+    print(norm.cdf([0,0.1]))
+    print(norm.pdf(0))
+    print(norm.cdf(0))
+
+def test19():
+    '''comb计算组合函数，perm计算排列函数'''
+    from scipy.special import comb, perm
+    print(comb(4,2))
+    print(perm(4,2))
+
+def test20():
+    data = np.loadtxt('./Data/ADE.txt',delimiter=',')
+    data = data[:,0:2]
+    plt.scatter(data[:,0],data[:,1])
+    plt.xlim([-5,10])
+    plt.ylim([0,15])
+    plt.show()
 
 if __name__=='__main__':
-    test17()
+    test20()
 
 
 

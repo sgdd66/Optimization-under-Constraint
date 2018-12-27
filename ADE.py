@@ -203,7 +203,7 @@ class ADE(object):
         population=len(self.Inds)
 
         for i in range(1,population):
-            if self.Inds[i].y!=self.Inds[0].y:
+            if (self.Inds[i].x!=self.Inds[0].x).any():
                 break
             num+=1
         return num/population
@@ -282,16 +282,28 @@ class ADE(object):
         return self.evolution(maxGen,maxProportion)
         
 if __name__=='__main__':
-    def func(X):
-        x=X[0]
-        y=X[1]
-        return 3*(1-x)**2*np.exp(-(x**2)-(y+1)**2)-10*(x/5-x**3-y**5)*np.exp(-x**2-y**2)-1/3*np.exp(-(x+1)**2-y**2)
+    # def func(X):
+    #     x=X[0]
+    #     y=X[1]
+    #     return 3*(1-x)**2*np.exp(-(x**2)-(y+1)**2)-10*(x/5-x**3-y**5)*np.exp(-x**2-y**2)-1/3*np.exp(-(x+1)**2-y**2)
+
+    # Brain函数
+    # def func(x):
+    #     pi=3.1415926
+    #     y=x[1]-(5*x[0]**2)/(4*pi**2)+5*x[0]/pi-6
+    #     y=y**2
+    #     y+=10*(1-1/(8*pi))*np.cos(x[0])+10
+    #     return y      
+
+    def func(x):
+        y = (1.5-x[0]*(1-x[1]))**2+(2.25-x[0]*(1-x[1]**2))**2+(2.625-x[0]*(1-x[1]**3))**2 
+        return y
     min=np.array([-3,-3])
     max=np.array([3,3])
     test=ADE(min,max,100,0.5,func,True)
     ind=test.evolution(maxGen=50)
     test.saveArg('./Data/ADE.txt')
-    ind = test.retrain('./Data/ADE.txt',maxGen=50)
+    ind = test.retrain('./Data/ADE.txt',maxGen=500)
 
 
 

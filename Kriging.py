@@ -22,6 +22,7 @@ import numpy as np
 import ADE
 import matplotlib.pyplot as plt
 import DOE
+from scipy.stats import norm
 
 
 
@@ -53,11 +54,10 @@ class Kriging(object):
         self.max = max
 
         self.p = np.zeros(d)+2
-        self.theta=np.zeros(d)+1
+        self.theta=np.zeros(d)+10
         self.R = np.zeros((num, num))
 
         self.log_likelihood(self.theta)
-
 
     def log_likelihood(self, theta):
         '''
@@ -87,6 +87,7 @@ class Kriging(object):
             self.R_1 = np.linalg.inv(self.R)
         except np.linalg.linalg.LinAlgError as error:
             #相关矩阵不可逆，对应样本失败，返回负无穷
+            print('相关矩阵不可逆，对应theta设置错误')
             return -np.inf
         F = np.zeros((num, 1)) + 1
         R_1 = self.R_1
@@ -137,17 +138,22 @@ class Kriging(object):
             test.saveArg(ADE_path)
         self.log_likelihood(ind.x)
 
-    def transform(self,x):
+    def transform(self,X):
         '''
         计算响应面中一点的期望和方差\n
         输入：\n
         x : d维向量，如果fit函数中的min和max非空，先归一化再计算\n
         输出：\n
-        第一返回值为期望，第二返回值为方差
+        第一返回值为期望，第二返回值为方差的开方
         '''
         num=self.X.shape[0]
-        for i in range(x.shape[0]):
-            x[i]=(x[i]-self.min[i])/(self.max[i]-self.min[i])
+        x = np.zeros_like(X)
+        if self.min is not None:
+            for i in range(x.shape[0]):
+                x[i]=(X[i]-self.min[i])/(self.max[i]-self.min[i])
+        else:
+            x = X
+
         r=np.zeros((num,1))
         for i in range(0,num):
             r[i]=self.correlation(self.X[i,:],x)
@@ -164,9 +170,39 @@ class Kriging(object):
         f1=f1/f2
         f2=np.dot(r.T,R_1)
         f2=np.dot(f2,r)
-        varience=self.sigma2*(1-f2+f1)
+        if f2>1:
+            f2 = 1
+        s = self.sigma2*(1-f2+f1)
+        if s<0:
+            print(s)
+        s=np.sqrt(s)    
 
-        return y, varience
+        return y, s
+
+    def get_Y(self,X):
+        '''计算响应面设计点的值\n
+        input:\n
+        x : 一维向量，采样点的坐标位置\n
+        output:\n
+        y : 响应面的估计值
+        '''
+        x = np.zeros_like(X)
+        num=self.X.shape[0]
+        if self.min is not None:
+            for i in range(x.shape[0]):
+                x[i]=(X[i]-self.min[i])/(self.max[i]-self.min[i])
+        else:
+            x = X
+        r=np.zeros((num,1))
+        for i in range(0,num):
+            r[i]=self.correlation(self.X[i,:],x)
+        F=np.zeros((num,1))+1
+        R_1=self.R_1
+        factor=self.Y-self.beta0*F
+        y=np.dot(r.T,R_1)
+        y=self.beta0+np.dot(y,factor)
+
+        return y
 
     def uniform(self,points,min,max):
         """将样本点归一化
@@ -200,6 +236,72 @@ class Kriging(object):
         for i in range(0,d):
             R[i]=-theta[i]*np.abs(point1[i]-point2[i])**p[i]
         return np.exp(np.sum(R))
+
+    def global_optimum(self,isMin=True):
+        '''
+        应用自适应差分进化算法，求解响应面的全局最优值\n
+        input :\n
+        isMin : 布尔变量\n
+        output : \n
+        optimum : 响应面全局最优值
+        '''
+        dim = self.X.shape[1]
+        if self.min is None:
+            min = np.zeros(dim)
+            max = np.zeros(dim)+1
+        else:
+            min = self.min
+            max = self.max
+        ade = ADE.ADE(min, max, 100, 0.5, self.get_Y,isMin)
+        opt_ind = ade.evolution(maxGen=500)
+        ade.saveArg('./Data/ADE_Kriging_optimum.txt')
+        optimum = self.get_Y(opt_ind.x)
+        return optimum
+
+    def GEI(self,x):
+        g = self.g
+        from scipy.stats import norm
+        from scipy.special import comb
+        y,s = self.transform(x)
+        u = (self.optimum-y)/s
+
+        T = np.zeros(g+1)
+        T[0] = norm.cdf(u)
+        T[1] = -T[0]
+        for k in range(2,g+1):
+            T[k] = -u**(k-1)*norm.pdf(u)+(k-1)*T[k-2]
+
+        gei = 0
+        for k in range(g+1):
+            gei += (-1)**k*comb(g,k)*u**(g-k)*T[k]
+        gei = s**g*gei
+        return gei 
+
+    def nextPoint_GEI(self,g):
+        '''
+        针对求解全局最小值的情况，应用GEI样本填充准则，寻找下一个采样点\n
+        input:\n
+        g : GEI函数的超参数，g越大倾向全局搜索，反之倾向于局部搜索。取值范围0~10的整数\n
+        output:\n
+        x : 下一个采样点的坐标位置
+        
+        '''
+        self.g = g
+        self.optimum = self.global_optimum()
+
+        dim = self.X.shape[1]
+        if self.min is None:
+            min = np.zeros(dim)
+            max = np.zeros(dim)+1
+        else:
+            min = self.min
+            max = self.max
+        ade = ADE.ADE(min, max, 100, 0.5, self.GEI,isMin=False)
+        opt_ind = ade.evolution(maxGen=500)
+        ade.saveArg('./Data/ADE_GEI_Optimum.txt')
+        return opt_ind.x
+        
+
 
 def writeFile(graphData=[],pointData=[],path=None):
     '''
@@ -271,74 +373,155 @@ def writeFile(graphData=[],pointData=[],path=None):
                 
                 file.write('X:\n')
                 for i in range(row):
-                    for j in range(col):
+                    for j in range(col-1):
                         file.write('%.18e,'%X[i,j])
-                    file.write('\n') 
+                    file.write('%.18e\n'%X[i,col-1])
+
                     
                 file.write('Y:\n')
                 for i in range(row):
                     file.write('%.18e\n'%Y[i])
-if __name__=="__main__":
+
+
+def func_leak(X):
+    x = X[0]
+    y = X[1]
+    return 3 * (1 - x) ** 2 * np.exp(-(x ** 2) - (y + 1) ** 2) - 10 * (x / 5 - x ** 3 - y ** 5) * np.exp(
+        -x ** 2 - y ** 2) - 1 / 3 * np.exp(-(x + 1) ** 2 - y ** 2)
+
+def func_Brain(x):
+    pi=3.1415926
+    y=x[1]-(5*x[0]**2)/(4*pi**2)+5*x[0]/pi-6
+    y=y**2
+    y+=10*(1-1/(8*pi))*np.cos(x[0])+10
+    return y
+
+#测试GEI加点函数
+def test_Kriging_GEI():
+    # 测试函数
 
     # leak函数
-    # def func(X):
-    #     x = X[0]
-    #     y = X[1]
-    #     return 3 * (1 - x) ** 2 * np.exp(-(x ** 2) - (y + 1) ** 2) - 10 * (x / 5 - x ** 3 - y ** 5) * np.exp(
-    #         -x ** 2 - y ** 2) - 1 / 3 * np.exp(-(x + 1) ** 2 - y ** 2)
+    # func = func_leak
     # min = np.array([-3, -3])
     # max = np.array([3, 3])
 
     # Brain函数
-    def func(x):
-        pi=3.1415926
-        y=x[1]-(5*x[0]**2)/(4*pi**2)+5*x[0]/pi-6
-        y=y**2
-        y+=10*(1-1/(8*pi))*np.cos(x[0])+10
-        return y
+    func = func_Brain  
+    print(func([0,2]))
     min = np.array([-5, 0])
     max = np.array([10, 15])
 
-    sampleNum=21
-
-    lh=DOE.LatinHypercube(2,sampleNum,min,max)
-    sample=lh.samples
-    realSample=lh.realSamples
-
-    value=np.zeros(sampleNum)
-    for i in range(0,sampleNum):
-        a = [realSample[i, 0], realSample[i, 1]]
-        value[i]=func(a)
-    kriging = Kriging()
-    kriging.fit(realSample, value, min, max)
-    # kriging.optimize(100)
-
-    prevalue=np.zeros_like(value)
-    varience=np.zeros_like(value)
-    for i in range(prevalue.shape[0]):
-        a = [realSample[i, 0], realSample[i, 1]]
-        prevalue[i],varience[i]=kriging.transform(np.array(a))
-    
-    print('实际值与预测值之差')
-    print(np.abs(value-prevalue))
-
+    #遍历设计空间
     x, y = np.mgrid[min[0]:max[0]:100j, min[1]:max[1]:100j]
     s = np.zeros_like(x)
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
             a = [x[i, j], y[i, j]]
             s[i, j] = func(a)
+
+
+
+    #生成样本点
+    sampleNum=21
+    # lh=DOE.LatinHypercube(2,sampleNum,min,max)
+    # realSample=lh.realSamples
+    # np.savetxt('./Data/realSample.txt',realSample,delimiter=',')
+    realSample = np.loadtxt('./Data/realSample.txt',delimiter=',')
+
+    value=np.zeros(sampleNum)
+    for i in range(0,sampleNum):
+        a = [realSample[i, 0], realSample[i, 1]]
+        value[i]=func(a)
     
+    #建立响应面
+    kriging = Kriging()
+    kriging.fit(realSample, value, min, max)
+    # kriging.optimize(100)
+
+    iterNum = 10    #加点数目
     preValue=np.zeros_like(x)
     varience=np.zeros_like(x)
+    for k in range(iterNum):
+        print('第%d次加点'%(k+1))
+        nextSample = kriging.nextPoint_GEI(g=1)
+        realSample = np.vstack([realSample,nextSample])
+        value = np.append(value,func(nextSample))
+        kriging = Kriging()
+        kriging.fit(realSample, value, min, max)
+        # kriging.optimize(100)
+
+        #遍历响应面
+        print('正在遍历响应面...')
+        for i in range(0,x.shape[0]):
+            for j in range(0,x.shape[1]):
+                a=[x[i, j], y[i, j]]
+                preValue[i,j],varience[i,j]=kriging.transform(np.array(a))
+
+        path = './Data/Kriging_Predicte_Model_%d.txt'%k
+        writeFile([x,y,preValue],[realSample,value],path)
+        path = './Data/Kriging_Varience_Model_%d.txt'%k
+        writeFile([x,y,varience],[realSample,value],path)
+
+
+    path = './Data/Kriging_True_Model.txt'
+    writeFile([x,y,s],[realSample,value],path)
+
+#测试kriging函数
+def test_Kriging():
+    # 测试函数
+
+    # leak函数
+    # func = func_leak
+    # min = np.array([-3, -3])
+    # max = np.array([3, 3])
+
+    # Brain函数
+    func = func_Brain  
+    min = np.array([-5, 0])
+    max = np.array([10, 15])
+
+    #遍历设计空间
+    x, y = np.mgrid[min[0]:max[0]:200j, min[1]:max[1]:200j]
+    s = np.zeros_like(x)
+    for i in range(x.shape[0]):
+        for j in range(x.shape[1]):
+            a = [x[i, j], y[i, j]]
+            s[i, j] = func(a)
+
+
+
+    #生成样本点
+    sampleNum=21
+    # lh=DOE.LatinHypercube(2,sampleNum,min,max)
+    # realSample=lh.realSamples
+    # np.savetxt('./Data/realSample.txt',realSample,delimiter=',')
+    realSample = np.loadtxt('./Data/realSample1.txt',delimiter=',')
+    sampleNum = realSample.shape[0]
+
+    value=np.zeros(sampleNum)
+    for i in range(0,sampleNum):
+        a = [realSample[i, 0], realSample[i, 1]]
+        value[i]=func(a)
+    
+    #建立响应面
+    kriging = Kriging()
+    kriging.fit(realSample, value, min, max)
+    # kriging.optimize(100)
+
+
+    #遍历响应面
+    preValue=np.zeros_like(x)
+    varience=np.zeros_like(x)    
     for i in range(0,x.shape[0]):
         for j in range(0,x.shape[1]):
             a=[x[i, j], y[i, j]]
             preValue[i,j],varience[i,j]=kriging.transform(np.array(a))
 
-    path = './Data/Kriging_True_Model.txt'
-    writeFile([x,y,s],[realSample,value],path)
     path = './Data/Kriging_Predicte_Model.txt'
     writeFile([x,y,preValue],[realSample,value],path)
     path = './Data/Kriging_Varience_Model.txt'
     writeFile([x,y,varience],[realSample,value],path)
+    path = './Data/Kriging_True_Model.txt'
+    writeFile([x,y,s],[realSample,value],path)    
+if __name__=="__main__":
+    test_Kriging_GEI()

@@ -469,18 +469,20 @@ def showData(path):
     mlab.view(0,0)
     photoPath = re.sub(r'.txt','.png',path)
     mlab.savefig(photoPath)
-    mlab.show()
+    mlab.close()
+    # mlab.show()
 
 
 if __name__=='__main__':
     # test=DataVisual()
     # test.test18()
-    showData('./Data/Kriging_True_Model.txt')
+    # showData('./Data/Kriging_True_Model.txt')
     # showData('./Data/Kriging_Predicte_Model.txt')  
     # showData('./Data/Kriging_Varience_Model.txt')   
-    iterNum = 10
-    for i in range(iterNum-1,-1,-1):
-        path = './Data/Kriging_Predicte_Model_%d.txt'%i
-        showData(path)
-        path = './Data/Kriging_Varience_Model_%d.txt'%i        
-        showData(path)
+    root_path = '/home/sgdd/Optimization-under-Constraint/Data/Kriging加点模型测试4'
+    for g in range(1,11):
+        for k in range(20):
+            path = root_path+'/%d/Kriging_Predicte_Model_%d.txt'%(g,k)
+            showData(path)
+            path = root_path+'/%d/Kriging_Varience_Model_%d.txt'%(g,k)       
+            showData(path)

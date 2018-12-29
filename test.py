@@ -12,7 +12,7 @@
 #
 # 修改记录
 # 日期  修改者   		版本     修改内容
-# ------------- 		-------  ------------------------  
+# ------------- 	-------  ------------------------  
 # ***************************************************************************
 
 #coding=utf-8
@@ -340,15 +340,51 @@ def test19():
     print(perm(4,2))
 
 def test20():
-    data = np.loadtxt('./Data/ADE.txt',delimiter=',')
-    data = data[:,0:2]
-    plt.scatter(data[:,0],data[:,1])
-    plt.xlim([-5,10])
-    plt.ylim([0,15])
-    plt.show()
+    '''测试文件路径，并建立文件路径'''
+    # 引入模块
+    import os
+    path = './Data/测试用文件夹/'
+    # 去除首位空格
+    path=path.strip()
+    # 去除尾部 \ 符号
+    # path=path.rstrip("/")
+ 
+    # 判断路径是否存在
+    # 存在     True
+    # 不存在   False
+    isExists=os.path.exists(path)
+ 
+    # 判断结果
+    if not isExists:
+        # 如果不存在则创建目录
+        # 创建目录操作函数
+        os.makedirs(path) 
+ 
+        print(path+' 创建成功')
+        return True
+    else:
+        # 如果目录存在则不创建，并提示目录已存在
+        print(path+' 目录已存在')
+        return False
+ 
+
+def test21():
+    import imageio
+    root_path = '/home/sgdd/Optimization-under-Constraint/Data/Kriging加点模型测试4'
+    for g in range(1,11):
+        images_predicte = []
+        images_Varience = []
+        for k in range(20):
+            path = root_path+'/%d/Kriging_Predicte_Model_%d.png'%(g,k)
+            images_predicte.append(imageio.imread(path))
+            path = root_path+'/%d/Kriging_Varience_Model_%d.png'%(g,k) 
+            images_Varience.append(imageio.imread(path))
+
+        imageio.mimsave(root_path+'/Predicte_g_%d.gif'%g, images_predicte,duration=1)
+        imageio.mimsave(root_path+'/Varience_g_%d.gif'%g, images_Varience,duration=1)
 
 if __name__=='__main__':
-    test20()
+    test21()
 
 
 

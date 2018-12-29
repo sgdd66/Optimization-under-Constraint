@@ -407,7 +407,6 @@ def test_Kriging_GEI():
 
     # Brain函数
     func = func_Brain  
-    print(func([0,2]))
     min = np.array([-5, 0])
     max = np.array([10, 15])
 
@@ -523,5 +522,74 @@ def test_Kriging():
     writeFile([x,y,varience],[realSample,value],path)
     path = './Data/Kriging_True_Model.txt'
     writeFile([x,y,s],[realSample,value],path)    
+
+def test_Kriging_GEI_Edition1():
+    '''遍历GEI中g值由10到1的加点趋势变化'''
+
+    #数据存储文件夹
+    root_path = './Data/Kriging加点模型测试4'
+    import os 
+    if not os.path.exists(root_path):
+        os.makedirs(root_path) 
+    
+    # Brain函数
+    func = func_Brain  
+    min = np.array([-5, 0])
+    max = np.array([10, 15])
+
+    #遍历设计空间
+    x, y = np.mgrid[min[0]:max[0]:100j, min[1]:max[1]:100j]
+    s = np.zeros_like(x)
+    for i in range(x.shape[0]):
+        for j in range(x.shape[1]):
+            a = [x[i, j], y[i, j]]
+            s[i, j] = func(a)
+
+    path = root_path+'/Kriging_True_Model.txt'
+    writeFile([x,y,s],[],path)
+
+    #生成样本点
+    for g in range(1,11):
+        path = root_path+'/%d'%g
+        if not os.path.exists(path):
+            os.makedirs(path)
+        realSample = np.loadtxt('./Data/realSample.txt',delimiter=',')
+        sampleNum = realSample.shape[0]
+        value=np.zeros(sampleNum)
+        for i in range(0,sampleNum):
+            a = [realSample[i, 0], realSample[i, 1]]
+            value[i]=func(a)
+        
+        #建立响应面
+        kriging = Kriging()
+        kriging.fit(realSample, value, min, max)
+        # kriging.optimize(100)
+
+        iterNum = 20    #加点数目
+        preValue=np.zeros_like(x)
+        varience=np.zeros_like(x)
+        for k in range(iterNum):
+            print('\nGEI超参数g=%d,第%d次加点'%(g,(k+1)))
+            nextSample = kriging.nextPoint_GEI(g)
+            realSample = np.vstack([realSample,nextSample])
+            value = np.append(value,func(nextSample))
+            kriging = Kriging()
+            kriging.fit(realSample, value, min, max)
+            # kriging.optimize(100)
+
+            #遍历响应面
+            print('正在遍历响应面...')
+            for i in range(0,x.shape[0]):
+                for j in range(0,x.shape[1]):
+                    a=[x[i, j], y[i, j]]
+                    preValue[i,j],varience[i,j]=kriging.transform(np.array(a))
+
+            path1 = path+'/Kriging_Predicte_Model_%d.txt'%k
+            writeFile([x,y,preValue],[realSample,value],path1)
+            path2 = path+'/Kriging_Varience_Model_%d.txt'%k
+            writeFile([x,y,varience],[realSample,value],path2)
+
+
+
 if __name__=="__main__":
-    test_Kriging_GEI()
+    test_Kriging_GEI_Edition1()

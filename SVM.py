@@ -90,18 +90,14 @@ class SVM(object):
         x : 一维向量，待预测的样本
 
         输出变量：\n
-        +1 ：正例\n
-        -1 ：负例
+        y : 距离超平面的距离
         '''
 
         kernal = np.zeros(self.sampleSum)
         for i in range(self.sampleSum):
             kernal[i]=self.Kernal(self.x[i,:],x)
         y=np.sum(self.alpha*self.y*kernal)+self.b
-        if y>0:
-            return 1
-        else:
-            return -1
+        return y 
 
     def SMO(self):
         '''
@@ -545,6 +541,43 @@ class SVM(object):
         plt.savefig(path)
         plt.show()
 
+    def infillSample(self):
+        '''边界加点算法\n
+        in : none\n
+        out : none\n
+        '''
+        dim = self.x.shape[1]
+
+        min = np.min(self.x,axis=0)
+        max = np.max(self.x,axis=0)
+        min = min-(max-min)*0.1
+        max = max+(max-min)*0.1
+
+        x = np.arange(min[0],max[0],0.05)
+        y = np.arange(min[1],max[1],0.05)
+
+        mesh_x,mesh_y = np.meshgrid(x,y)
+        mesh_x = mesh_x.flatten()
+        mesh_y = mesh_y.flatten()
+
+        num = len(mesh_x)
+        mark = np.zeros(num)
+        dis = np.zeros(num)
+        #超平面两侧的门限距离
+        threshold_distance = 1
+        for i in range(num):
+            p = [mesh_x[i],mesh_y[i]]
+            dis[i] = svm.transform(np.array(p))
+            if dis[i] > threshold_distance:
+                mark[i] = 1
+            elif dis[i] <-threshold_distance:
+                mark[i] = -1
+            elif dis[i] < threshold_distance and dis[i] > 0:
+                mark[i] = 0.5
+            elif dis[i] > -threshold_distance and dis[i]< 0:
+                mark[i] = -0.5        
+
+
 def test_Sample0():
     x=np.array([[1,2],[2,3],[3,3],[2,1],[3,2]])
     y=np.array([1,1,1,-1,-1])
@@ -660,12 +693,37 @@ def test_Sample3():
     samples = np.hstack((samples,mark))
     np.savetxt('./Data/sample3.csv',samples,delimiter=',')
 
+def test_Sample4():
+    '''二次非线性可分，少量样本集，用于检测svm加点算法的功能'''
+    import DOE
+    min = [0,0]
+    max = [2,2]
+    sampleNum = 20
+    latinSamples = DOE.LatinHypercube(dimension=2,num=sampleNum,min=min,max=max)
+    samples = latinSamples.realSamples
+    mark = np.zeros(sampleNum)
+    f = lambda x:-x**2+2*x+0.3
+    for index,sample in enumerate(samples):
+        if sample[1]>f(sample[0]):
+            mark[index]=1
+        else:
+            mark[index]=-1
 
+    sample_pos = samples[np.where(mark==1)[0],:]
+    sample_neg = samples[np.where(mark==-1)[0],:]
+    plt.scatter(sample_pos[:,0],sample_pos[:,1])
+    plt.scatter(sample_neg[:,0],sample_neg[:,1])
+    x = np.linspace(min[0],max[0],100)
+    y = f(x)  
+    plt.plot(x,y)
+    plt.show()
 
-
-if __name__=="__main__":
-    # test_Sample3()
-
+    mark = mark.reshape((-1,1))
+    samples = np.hstack((samples,mark))
+    np.savetxt('./Data/sample4.csv',samples,delimiter=',')
+    
+def test_SVM():
+    '''测试svm算法'''
     f=lambda x,y:(np.dot(x,y)+1)**3
 
     # path = './Data/sample3.csv'
@@ -677,7 +735,64 @@ if __name__=="__main__":
     # svm.show()
 
     svm = SVM(1,kernal=f)
-    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM_Argument_2018-11-26_17-17-04.txt'
-    svm.retrain(path,maxIter=5000)
-    svm.show()
+    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM_Argument_2019-01-02_09-05-05.txt'
+    svm.retrain(path,maxIter=10)
+    svm.show()   
 
+def test_infill_sample():
+    '''测试svm的加点算法'''
+    f=lambda x,y:(np.dot(x,y)+1)**3
+
+    svm = SVM(1,kernal=f)
+    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM_Argument_2019-01-02_09-05-05.txt'
+    svm.retrain(path,maxIter=10)
+
+    min = [0,0]
+    max = [2,2]
+    x = np.arange(min[0],max[0],0.05)
+    y = np.arange(min[1],max[1],0.05)
+
+    mesh_x,mesh_y = np.meshgrid(x,y)
+    mesh_x = mesh_x.flatten()
+    mesh_y = mesh_y.flatten()
+
+    num = len(mesh_x)
+    mark = np.zeros(num)
+    dis = np.zeros(num)
+    #超平面两侧的门限距离
+    threshold_distance = 1
+    for i in range(num):
+        p = [mesh_x[i],mesh_y[i]]
+        dis[i] = svm.transform(np.array(p))
+        if dis[i] > threshold_distance:
+            mark[i] = 1
+        elif dis[i] <-threshold_distance:
+            mark[i] = -1
+        elif dis[i] < threshold_distance and dis[i] > 0:
+            mark[i] = 0.5
+        elif dis[i] > -threshold_distance and dis[i]< 0:
+            mark[i] = -0.5
+
+
+    positive_out_x = mesh_x[np.where(mark==1)]
+    positive_out_y = mesh_y[np.where(mark==1)]
+
+    positive_in_x = mesh_x[np.where(mark==0.5)]
+    positive_in_y = mesh_y[np.where(mark==0.5)]
+
+    negative_out_x = mesh_x[np.where(mark==-1)]
+    negative_out_y = mesh_y[np.where(mark==-1)]
+
+    negative_in_x = mesh_x[np.where(mark==-0.5)]
+    negative_in_y = mesh_y[np.where(mark==-0.5)]
+
+
+    plt.scatter(positive_out_x,positive_out_y,c='r',marker='.')         
+    plt.scatter(negative_out_x,negative_out_y,c='b',marker='.')  
+    plt.scatter(positive_in_x,positive_in_y,c='r',marker='o')         
+    plt.scatter(negative_in_x,negative_in_y,c='b',marker='o')      
+    plt.show()
+
+if __name__=="__main__":
+    # test_Sample4()
+    test_infill_sample()

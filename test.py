@@ -367,8 +367,8 @@ def test20():
         print(path+' 目录已存在')
         return False
  
-
 def test21():
+    '''测试gif文件的制作'''
     import imageio
     root_path = '/home/sgdd/Optimization-under-Constraint/Data/Kriging加点模型测试4'
     for g in range(1,11):
@@ -383,8 +383,28 @@ def test21():
         imageio.mimsave(root_path+'/Predicte_g_%d.gif'%g, images_predicte,duration=1)
         imageio.mimsave(root_path+'/Varience_g_%d.gif'%g, images_Varience,duration=1)
 
+def test22():
+    '''求取矩阵的最小最大值'''
+    data = np.random.randint(0,10,size=(4,4))
+    print(data)
+    min_row = np.min(data,1)
+    min_col = np.min(data,0)
+
+    print('min_row:')
+    print(min_row)
+    print('min_col:')
+    print(min_col)
+
+    max_row = np.max(data,1)
+    max_col = np.max(data,0)
+    print('max_row:')
+    print(max_row)
+    print('max_col:')
+    print(max_col)
+
+
 if __name__=='__main__':
-    test21()
+    test22()
 
 
 

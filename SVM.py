@@ -541,41 +541,154 @@ class SVM(object):
         plt.savefig(path)
         plt.show()
 
-    def infillSample(self):
-        '''边界加点算法\n
-        in : none\n
-        out : none\n
+    def infillSpace(self,min,max,labelNum):
+        '''按照指定的参数用采样点密布整个设计空间，返回采样点的坐标\n
+        in : \n
+        min : 各维度的下限\n
+        max : 各维度的上限\n
+        labelNum : 各维度的划分数目\n
+        out :\n
+        samples : 二维数组，每一行是一个样本点\n
         '''
+
+        #检查各参数维度是否匹配
+        dim = len(min)
+        if dim != len(max):
+            raise ValueError('infillSpace:参数维度不匹配')
+        if dim != len(labelNum):
+            raise ValueError('infillSpace:参数维度不匹配')            
+
+
+        coordinates = []
+        pointNum = 1
+        for i in range(dim):
+            coordinate = np.linspace(min[i],max[i],labelNum[i])
+            coordinates.append(coordinate)
+            pointNum*=labelNum[i]
+
+        samples = np.zeros((pointNum,dim))
+        for i in range(pointNum):
+            ans = i 
+            remainder = 0
+            index = np.zeros(dim)
+            for j in range(dim):
+                remainder = ans%labelNum[j]
+                ans = ans//labelNum[j]
+                index[j] = remainder
+                if ans==0:
+                    break
+            for j in range(dim):
+                samples[i][j] = coordinates[j][int(index[j])]
+
+        return samples
+
+    def AssemblageDistance(self,A,B):
+        '''计算样本集A中每个样本距离样本集B中最近样本的距离\n
+        in :\n
+        A : 样本集A，二维矩阵，每一行代表一个样本\n
+        B : 样本集B，二维矩阵，每一行代表一个样本\n
+        out : \n
+        distances : 一维向量，数目与样本集A的数目相同，表示样本集A中每个样本距离样本集B中最近样本的距离\n
+        '''
+        num_A = A.shape[0]
+        num_B = B.shape[0]
+        dim = A.shape[1]
+        if dim!=B.shape[1]:
+            raise ValueError('AssemblageDistance:样本集A与B的维度不匹配')
+        
+        distances = np.zeros(num_A)
+        for i in range(num_A):
+            dis = np.zeros(num_B)
+            for j in range(num_B):
+                dis[j] = np.linalg.norm(A[i,:]-B[j,:])
+            distances[i] = np.min(dis)
+        
+        return distances
+
+    def infillSample(self,T0,T1,min,max,labelNum):
+        '''超平面边界加点算法，调用该算法的前提是已经应用fit函数完成超平面的划分\n
+        in : \n
+        T0 : 控制与超平面距离的门限值，超出此距离内的候选的点将被舍弃\n
+        T1 : 控制超平面两侧加点密度的门限值，值越大加点越少\n
+        min : 加点区域的下界\n
+        max : 加点区域的上界\n
+        labelNum : 一维向量，维度与fit函数的x的shape[1]相同，表示产生初始候选集时各维度的划分数目\n
+        out : \n
+        samples_C : 二维矩阵，每一行是一个样本点。若为None，代表超平面两侧采样点密度满足要求\n
+        '''
+        #检查参数维度是否匹配
         dim = self.x.shape[1]
+        if dim!=len(labelNum):
+            raise ValueError('infillSample:参数维度不匹配')
+        if dim!=len(min):
+            raise ValueError('infillSample:参数维度不匹配')
+        if dim!=len(max):
+            raise ValueError('infillSample:参数维度不匹配')
 
-        min = np.min(self.x,axis=0)
-        max = np.max(self.x,axis=0)
-        min = min-(max-min)*0.1
-        max = max+(max-min)*0.1
+        #生成样本集A，B，C
+        samples_A = self.infillSpace(min,max,labelNum)
+        samples_B = self.x
+        samples_C = None
 
-        x = np.arange(min[0],max[0],0.05)
-        y = np.arange(min[1],max[1],0.05)
+        plt.scatter(samples_B[:,0],samples_B[:,1],c='r',marker='.')
+        plt.show()
 
-        mesh_x,mesh_y = np.meshgrid(x,y)
-        mesh_x = mesh_x.flatten()
-        mesh_y = mesh_y.flatten()
+        #筛选样本集A，B，保留距离分割超平面距离T0之内的样本点
+        num_A = samples_A.shape[0]
+        mark_A = np.zeros(num_A)
+        dis_A = np.zeros(num_A)
 
-        num = len(mesh_x)
-        mark = np.zeros(num)
-        dis = np.zeros(num)
-        #超平面两侧的门限距离
-        threshold_distance = 1
-        for i in range(num):
-            p = [mesh_x[i],mesh_y[i]]
-            dis[i] = svm.transform(np.array(p))
-            if dis[i] > threshold_distance:
-                mark[i] = 1
-            elif dis[i] <-threshold_distance:
-                mark[i] = -1
-            elif dis[i] < threshold_distance and dis[i] > 0:
-                mark[i] = 0.5
-            elif dis[i] > -threshold_distance and dis[i]< 0:
-                mark[i] = -0.5        
+        for i in range(num_A):
+            dis_A[i] = self.transform(samples_A[i,:])
+            if dis_A[i] > T0:
+                mark_A[i] = 1
+            elif dis_A[i] < -T0:
+                mark_A[i] = -1
+            elif dis_A[i] < T0 and dis_A[i] > 0:
+                mark_A[i] = 0.5
+            elif dis_A[i] > -T0 and dis_A[i] < 0:
+                mark_A[i] = -0.5       
+
+        samples_A = samples_A[np.where(np.abs(mark_A)==0.5)] 
+
+        
+        num_B = samples_B.shape[0]
+        mark_B = np.zeros(num_B)
+        dis_B = np.zeros(num_B)
+
+        for i in range(num_B):
+            dis_B[i] = self.transform(samples_B[i,:])
+            if dis_B[i] > T0:
+                mark_B[i] = 1
+            elif dis_B[i] < -T0:
+                mark_B[i] = -1
+            elif dis_B[i] < T0 and dis_B[i] > 0:
+                mark_B[i] = 0.5
+            elif dis_B[i] > -T0 and dis_B[i] < 0:
+                mark_B[i] = -0.5       
+
+        samples_B = samples_B[np.where(np.abs(mark_B)==0.5)] 
+            
+        if samples_B.shape[0] == 0:
+            raise ValueError('infillSample:T0设置过小，区域内没有已采样点')
+
+        #计算样本集A与样本集B的距离
+        distances = self.AssemblageDistance(samples_A,samples_B)
+
+        L_max = np.max(distances)
+
+        while L_max>T1:
+            pos = np.where(distances==L_max)
+            if samples_C is None:
+                samples_C = samples_A[pos,:]
+            else:
+                samples_C = np.hstack(samples_C,samples_A[pos,:])
+            samples_B = np.hstack(samples_B,samples_A[pos,:])
+            samples_A = np.delete(samples_A,pos)
+            distances = self.AssemblageDistance(samples_A,samples_B)
+            L_max = np.max(distances)
+
+        return samples_C
 
 
 def test_Sample0():
@@ -744,54 +857,60 @@ def test_infill_sample():
     f=lambda x,y:(np.dot(x,y)+1)**3
 
     svm = SVM(1,kernal=f)
-    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM_Argument_2019-01-02_09-05-05.txt'
+    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM加点程序测试1/Data/SVM_Argument_2019-01-02_09-05-05.txt'
     svm.retrain(path,maxIter=10)
 
-    min = [0,0]
-    max = [2,2]
-    x = np.arange(min[0],max[0],0.05)
-    y = np.arange(min[1],max[1],0.05)
+    svm.infillSample(2,1,[0,0],[2,2],[20,20])
 
-    mesh_x,mesh_y = np.meshgrid(x,y)
-    mesh_x = mesh_x.flatten()
-    mesh_y = mesh_y.flatten()
+    # min = [0,0]
+    # max = [2,2]
+    # x = np.arange(min[0],max[0],0.01)
+    # y = np.arange(min[1],max[1],0.01)
 
-    num = len(mesh_x)
-    mark = np.zeros(num)
-    dis = np.zeros(num)
-    #超平面两侧的门限距离
-    threshold_distance = 1
-    for i in range(num):
-        p = [mesh_x[i],mesh_y[i]]
-        dis[i] = svm.transform(np.array(p))
-        if dis[i] > threshold_distance:
-            mark[i] = 1
-        elif dis[i] <-threshold_distance:
-            mark[i] = -1
-        elif dis[i] < threshold_distance and dis[i] > 0:
-            mark[i] = 0.5
-        elif dis[i] > -threshold_distance and dis[i]< 0:
-            mark[i] = -0.5
+    # mesh_x,mesh_y = np.meshgrid(x,y)
+    # mesh_x = mesh_x.flatten()
+    # mesh_y = mesh_y.flatten()
 
-
-    positive_out_x = mesh_x[np.where(mark==1)]
-    positive_out_y = mesh_y[np.where(mark==1)]
-
-    positive_in_x = mesh_x[np.where(mark==0.5)]
-    positive_in_y = mesh_y[np.where(mark==0.5)]
-
-    negative_out_x = mesh_x[np.where(mark==-1)]
-    negative_out_y = mesh_y[np.where(mark==-1)]
-
-    negative_in_x = mesh_x[np.where(mark==-0.5)]
-    negative_in_y = mesh_y[np.where(mark==-0.5)]
+    # num = len(mesh_x)
+    # mark = np.zeros(num)
+    # dis = np.zeros(num)
+    # #超平面两侧的门限距离
+    # threshold_distance = 1
+    # for i in range(num):
+    #     p = [mesh_x[i],mesh_y[i]]
+    #     dis[i] = svm.transform(np.array(p))
+    #     if dis[i] > threshold_distance:
+    #         mark[i] = 1
+    #     elif dis[i] <-threshold_distance:
+    #         mark[i] = -1
+    #     elif dis[i] < threshold_distance and dis[i] > 0:
+    #         mark[i] = 0.5
+    #     elif dis[i] > -threshold_distance and dis[i]< 0:
+    #         mark[i] = -0.5
 
 
-    plt.scatter(positive_out_x,positive_out_y,c='r',marker='.')         
-    plt.scatter(negative_out_x,negative_out_y,c='b',marker='.')  
-    plt.scatter(positive_in_x,positive_in_y,c='r',marker='o')         
-    plt.scatter(negative_in_x,negative_in_y,c='b',marker='o')      
-    plt.show()
+    # positive_out_x = mesh_x[np.where(mark==1)]
+    # positive_out_y = mesh_y[np.where(mark==1)]
+
+    # positive_in_x = mesh_x[np.where(mark==0.5)]
+    # positive_in_y = mesh_y[np.where(mark==0.5)]
+
+    # negative_out_x = mesh_x[np.where(mark==-1)]
+    # negative_out_y = mesh_y[np.where(mark==-1)]
+
+    # negative_in_x = mesh_x[np.where(mark==-0.5)]
+    # negative_in_y = mesh_y[np.where(mark==-0.5)]
+
+
+    # plt.scatter(positive_out_x,positive_out_y,c='r',marker='.')         
+    # plt.scatter(negative_out_x,negative_out_y,c='b',marker='.')  
+    # plt.scatter(positive_in_x,positive_in_y,c='r',marker='o')         
+    # plt.scatter(negative_in_x,negative_in_y,c='b',marker='o')      
+    # import time
+    # timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+    # path = './Data/SVM_Photo_{0}.png'.format(timemark)
+    # plt.savefig(path)
+    # plt.show()
 
 if __name__=="__main__":
     # test_Sample4()

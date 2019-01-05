@@ -403,12 +403,8 @@ def test22():
     print(max_col)
 
 def test23():
-    data = np.array([1,4,5,6,3,7,4])
-    pos = np.where(data==4)
-    pos = ([1,2])
-    print(data[pos])
-
-    data = np.delete(data,pos[0])
+    data = np.array([[2,2],[3,3],[4,4]])
+    data = np.delete(data,[0],0)
     print(data)
 
 if __name__=='__main__':

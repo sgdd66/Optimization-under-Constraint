@@ -201,30 +201,6 @@ class SVM(object):
             for i in range(len(self.variable)):
                 file.write('%d,%d\n'%(self.variable[i][0],self.variable[i][1]))
 
-
-
-
-        # #初始化变量
-
-        # self.sampleSum = x.shape[0]
-        # self.sampleDim=x.shape[1]
-
-        # self.x=x
-        # self.y=y
-        # self.Gram=Gram
-        
-        # self.b=0
-
-        # self.alpha = np.zeros(self.sampleSum)
-        # self.E=np.zeros(self.sampleSum)
-        # self.kkt=np.zeros((self.sampleSum))
- 
-
-        # #观测变量，存储每一轮迭代目标函数的值
-        # self.aim=[]
-        # #观测变量，存储每一迭代选择的变量索引
-        # self.variable=[]
-
     def retrain(self,path,maxIter=100):
         '''读取参数文件重新训练\n
 
@@ -463,6 +439,42 @@ class SVM(object):
         '''
         展示SMO算法求解的结果，仅限于二维展示
         '''
+        #绘制背景底色
+        x_min = np.min(self.x,axis=0)
+        x_max = np.max(self.x,axis=0)
+        scale = (x_max-x_min)*0.05
+        x_min = x_min-scale
+        x_max = x_max+scale
+
+        x = np.linspace(x_min[0],x_max[0],100)
+        y = np.linspace(x_min[1],x_max[1],100)
+        mesh_x,mesh_y = np.meshgrid(x,y)
+        mesh_x = mesh_x.flatten().reshape((-1,1))
+        mesh_y = mesh_y.flatten().reshape((-1,1))
+        mesh = np.hstack((mesh_x,mesh_y))
+
+        mark = np.zeros(mesh.shape[0])
+        dis = np.zeros(mesh.shape[0])
+        for i in range(mesh.shape[0]):
+            dis[i] = self.transform(mesh[i,:])
+            if dis[i] > 1:
+                mark[i] = 1
+            elif dis[i] < 1 and dis[i] > 0:
+                mark[i] = 0.5
+            elif dis[i] > -1 and dis[i] <= 0:
+                mark[i] = -0.5
+            else:
+                mark[i] = -1
+        point = mesh[np.where(mark==1)]
+        plt.scatter(point[:,0],point[:,1],c='pink',marker='.')
+        point = mesh[np.where(mark==0.5)]
+        plt.scatter(point[:,0],point[:,1],c='violet',marker='.')        
+        point = mesh[np.where(mark==-1)]
+        plt.scatter(point[:,0],point[:,1],c='lightsteelblue',marker='.')
+        point = mesh[np.where(mark==-0.5)]
+        plt.scatter(point[:,0],point[:,1],c='cornflowerblue',marker='.') 
+
+
         calc_outcome = self.E+self.y
         mark_outcome = self.y
 
@@ -482,7 +494,6 @@ class SVM(object):
 
         #落在分割超平面上的点
         mid = []
-
 
         for i in range(self.sampleSum):
             #支持向量
@@ -525,15 +536,6 @@ class SVM(object):
         if len(neg_true)>0:
             neg_true = np.array(neg_true)
             plt.scatter(neg_true[:,0],neg_true[:,1],c='b',marker='.')            
-
-        # x_min = min(self.x[:,0])
-        # x_max = max(self.x[:,1])
-        # x = np.linspace(x_min,x_max,100)
-        # w = np.zeros(2)
-        # for i in range(self.sampleDim):
-        #     w[i] = np.sum(self.alpha*self.y*self.x[:,i])
-        # y = (w[0]*x+svm.b)/-w[1]
-        # plt.plot(x,y)
 
         import time
         timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
@@ -630,9 +632,6 @@ class SVM(object):
         samples_B = self.x
         samples_C = None
 
-        plt.scatter(samples_B[:,0],samples_B[:,1],c='r',marker='.')
-        plt.show()
-
         #筛选样本集A，B，保留距离分割超平面距离T0之内的样本点
         num_A = samples_A.shape[0]
         mark_A = np.zeros(num_A)
@@ -650,43 +649,55 @@ class SVM(object):
                 mark_A[i] = -0.5       
 
         samples_A = samples_A[np.where(np.abs(mark_A)==0.5)] 
-
         
+        #对于样本集B门限约束固定为1.1
+        T0_B = 1.1
         num_B = samples_B.shape[0]
         mark_B = np.zeros(num_B)
         dis_B = np.zeros(num_B)
 
         for i in range(num_B):
             dis_B[i] = self.transform(samples_B[i,:])
-            if dis_B[i] > T0:
+            if dis_B[i] > T0_B:
                 mark_B[i] = 1
-            elif dis_B[i] < -T0:
+            elif dis_B[i] < -T0_B:
                 mark_B[i] = -1
-            elif dis_B[i] < T0 and dis_B[i] > 0:
+            elif dis_B[i] < T0_B and dis_B[i] > 0:
                 mark_B[i] = 0.5
-            elif dis_B[i] > -T0 and dis_B[i] < 0:
+            elif dis_B[i] > -T0_B and dis_B[i] < 0:
                 mark_B[i] = -0.5       
 
         samples_B = samples_B[np.where(np.abs(mark_B)==0.5)] 
-            
+
         if samples_B.shape[0] == 0:
             raise ValueError('infillSample:T0设置过小，区域内没有已采样点')
 
         #计算样本集A与样本集B的距离
         distances = self.AssemblageDistance(samples_A,samples_B)
-
         L_max = np.max(distances)
 
         while L_max>T1:
-            pos = np.where(distances==L_max)
+            pos = np.where(distances==L_max)[0]
             if samples_C is None:
-                samples_C = samples_A[pos,:]
+                samples_C = samples_A[pos[0],:].reshape((1,-1))
             else:
-                samples_C = np.hstack(samples_C,samples_A[pos,:])
-            samples_B = np.hstack(samples_B,samples_A[pos,:])
-            samples_A = np.delete(samples_A,pos)
+                samples_C = np.vstack((samples_C,samples_A[pos[0],:]))
+            samples_B = np.vstack((samples_B,samples_A[pos[0],:]))
+            samples_A = np.delete(samples_A,pos,axis=0)
             distances = self.AssemblageDistance(samples_A,samples_B)
             L_max = np.max(distances)
+
+        plt.scatter(samples_A[:,0],samples_A[:,1],c='r',marker='.')
+        plt.scatter(samples_B[:,0],samples_B[:,1],c='b',marker='.') 
+        plt.scatter(samples_C[:,0],samples_C[:,1],c='c',marker='.')                        
+        plt.xlim(min[0]-0.1,max[0]+0.1)
+        plt.ylim(min[1]-0.1,max[1]+0.1)
+        import time
+        timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+        path = './Data/SVM加点程序测试1/SVM_Photo_{0}.png'.format(timemark)
+        plt.savefig(path)
+        plt.show(5)
+
 
         return samples_C
 
@@ -839,79 +850,47 @@ def test_SVM():
     '''测试svm算法'''
     f=lambda x,y:(np.dot(x,y)+1)**3
 
-    # path = './Data/sample3.csv'
-    # data = np.loadtxt(path,delimiter=',')
-    # x = data[:,0:2]
-    # y = data[:,2]
-    # svm=SVM(1,kernal=f)
-    # svm.fit(x,y,maxIter=1000)
-    # svm.show()
+    path = './Data/sample4.csv'
+    data = np.loadtxt(path,delimiter=',')
+    x = data[:,0:2]
+    y = data[:,2]
+    svm=SVM(1,kernal=f)
+    svm.fit(x,y,maxIter=1000)
+    svm.show()
 
-    svm = SVM(1,kernal=f)
-    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM_Argument_2019-01-02_09-05-05.txt'
-    svm.retrain(path,maxIter=10)
-    svm.show()   
+    # svm = SVM(1,kernal=f)
+    # path = '/home/sgdd/Optimization-under-Constraint/Data/SVM_Argument_2019-01-02_09-05-05.txt'
+    # svm.retrain(path,maxIter=10)
+    # svm.show()   
 
 def test_infill_sample():
     '''测试svm的加点算法'''
+
+    test_f = lambda x:-x**2+2*x+0.3
     f=lambda x,y:(np.dot(x,y)+1)**3
 
     svm = SVM(1,kernal=f)
-    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM加点程序测试1/Data/SVM_Argument_2019-01-02_09-05-05.txt'
+    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM加点程序测试1/SVM_Argument_2019-01-02_09-05-05.txt'
     svm.retrain(path,maxIter=10)
 
-    svm.infillSample(2,1,[0,0],[2,2],[20,20])
-
-    # min = [0,0]
-    # max = [2,2]
-    # x = np.arange(min[0],max[0],0.01)
-    # y = np.arange(min[1],max[1],0.01)
-
-    # mesh_x,mesh_y = np.meshgrid(x,y)
-    # mesh_x = mesh_x.flatten()
-    # mesh_y = mesh_y.flatten()
-
-    # num = len(mesh_x)
-    # mark = np.zeros(num)
-    # dis = np.zeros(num)
-    # #超平面两侧的门限距离
-    # threshold_distance = 1
-    # for i in range(num):
-    #     p = [mesh_x[i],mesh_y[i]]
-    #     dis[i] = svm.transform(np.array(p))
-    #     if dis[i] > threshold_distance:
-    #         mark[i] = 1
-    #     elif dis[i] <-threshold_distance:
-    #         mark[i] = -1
-    #     elif dis[i] < threshold_distance and dis[i] > 0:
-    #         mark[i] = 0.5
-    #     elif dis[i] > -threshold_distance and dis[i]< 0:
-    #         mark[i] = -0.5
+    x = svm.x
+    y = svm.y
+    new_x = svm.infillSample(0.5,0.2,[0,0],[2,2],[40,40])
+    num = new_x.shape[0]
+    new_y = np.zeros(num)
+    for i in range(num):
+        if new_x[1] > test_f(new_x[0]):
+            new_y[i] = 1
+        else:
+            new_y[i] = -1 
+    x = np.vstack((x,new_x))
+    y = y.extend(new_y)
+    # svm.fit(x,y,5000)
+    svm.show
 
 
-    # positive_out_x = mesh_x[np.where(mark==1)]
-    # positive_out_y = mesh_y[np.where(mark==1)]
-
-    # positive_in_x = mesh_x[np.where(mark==0.5)]
-    # positive_in_y = mesh_y[np.where(mark==0.5)]
-
-    # negative_out_x = mesh_x[np.where(mark==-1)]
-    # negative_out_y = mesh_y[np.where(mark==-1)]
-
-    # negative_in_x = mesh_x[np.where(mark==-0.5)]
-    # negative_in_y = mesh_y[np.where(mark==-0.5)]
-
-
-    # plt.scatter(positive_out_x,positive_out_y,c='r',marker='.')         
-    # plt.scatter(negative_out_x,negative_out_y,c='b',marker='.')  
-    # plt.scatter(positive_in_x,positive_in_y,c='r',marker='o')         
-    # plt.scatter(negative_in_x,negative_in_y,c='b',marker='o')      
-    # import time
-    # timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
-    # path = './Data/SVM_Photo_{0}.png'.format(timemark)
-    # plt.savefig(path)
-    # plt.show()
 
 if __name__=="__main__":
     # test_Sample4()
-    test_infill_sample()
+    # test_infill_sample()
+    test_SVM()

@@ -36,6 +36,7 @@ class SVM(object):
     def __init__(self,C,kernal=None):
 
         self.C=C
+        self.path = './Data/SVM加点程序测试2'
         if(kernal is None):
             self.Kernal=lambda x,y:np.sum(x*y)
         else:
@@ -154,7 +155,7 @@ class SVM(object):
         #获取当前时间作为文件名
         import time
         timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
-        path = './Data/SVM_Argument_{0}.txt'.format(timemark)
+        path = self.path+'/SVM_Argument_{0}.txt'.format(timemark)
         with open(path,'w') as file:
             file.write('C:%.18e\n'%self.C)
             file.write('sample sum:{0}\n'.format(self.sampleSum))
@@ -439,6 +440,12 @@ class SVM(object):
         '''
         展示SMO算法求解的结果，仅限于二维展示
         '''
+        #绘制标准分割线
+        test_f = lambda x:1.5*np.sin(x)
+        x = np.linspace(0,2*np.pi,100)
+        y = test_f(x)
+        plt.plot(x,y)
+
         #绘制背景底色
         x_min = np.min(self.x,axis=0)
         x_max = np.max(self.x,axis=0)
@@ -539,7 +546,7 @@ class SVM(object):
 
         import time
         timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
-        path = './Data/SVM_Photo_{0}.png'.format(timemark)
+        path = self.path+'/SVM_Photo_{0}.png'.format(timemark)
         plt.savefig(path)
         plt.show()
 
@@ -607,7 +614,7 @@ class SVM(object):
         
         return distances
 
-    def infillSample(self,T0,T1,min,max,labelNum):
+    def infillSample1(self,T0,T1,min,max,labelNum):
         '''超平面边界加点算法，调用该算法的前提是已经应用fit函数完成超平面的划分\n
         in : \n
         T0 : 控制与超平面距离的门限值，超出此距离内的候选的点将被舍弃\n
@@ -687,6 +694,10 @@ class SVM(object):
             distances = self.AssemblageDistance(samples_A,samples_B)
             L_max = np.max(distances)
 
+        if samples_C is None:
+            print('分割超平面两侧点密度达到要求')
+            return samples_C
+
         plt.scatter(samples_A[:,0],samples_A[:,1],c='r',marker='.')
         plt.scatter(samples_B[:,0],samples_B[:,1],c='b',marker='.') 
         plt.scatter(samples_C[:,0],samples_C[:,1],c='c',marker='.')                        
@@ -694,13 +705,132 @@ class SVM(object):
         plt.ylim(min[1]-0.1,max[1]+0.1)
         import time
         timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
-        path = './Data/SVM加点程序测试1/SVM_Photo_{0}.png'.format(timemark)
+        path = self.path+'/SVM_Photo_{0}.png'.format(timemark)
         plt.savefig(path)
         plt.show(5)
 
 
         return samples_C
 
+    def infillSample2(self,T0,T1,min,max,labelNum):
+        '''超平面边界加点算法，与方法1不同，加点是在正负区域内分别完成的。\n
+        in : \n
+        T0 : 控制与超平面距离的门限值，超出此距离内的候选的点将被舍弃\n
+        T1 : 控制超平面两侧加点密度的门限值，值越大加点越少\n
+        min : 加点区域的下界\n
+        max : 加点区域的上界\n
+        labelNum : 一维向量，维度与fit函数的x的shape[1]相同，表示产生初始候选集时各维度的划分数目\n
+        out : \n
+        samples_C : 二维矩阵，每一行是一个样本点。若为None，代表超平面两侧采样点密度满足要求\n
+        '''
+        #检查参数维度是否匹配
+        dim = self.x.shape[1]
+        if dim!=len(labelNum):
+            raise ValueError('infillSample:参数维度不匹配')
+        if dim!=len(min):
+            raise ValueError('infillSample:参数维度不匹配')
+        if dim!=len(max):
+            raise ValueError('infillSample:参数维度不匹配')
+
+        #生成样本集A，B，C
+        samples_A = self.infillSpace(min,max,labelNum)
+        samples_B = self.x
+        samples_C = None
+
+        #筛选样本集A，B，保留距离分割超平面距离T0之内的样本点
+        num_A = samples_A.shape[0]
+        mark_A = np.zeros(num_A)
+        dis_A = np.zeros(num_A)
+
+        for i in range(num_A):
+            dis_A[i] = self.transform(samples_A[i,:])
+            if dis_A[i] > T0:
+                mark_A[i] = 1
+            elif dis_A[i] < -T0:
+                mark_A[i] = -1
+            elif dis_A[i] < T0 and dis_A[i] > 0:
+                mark_A[i] = 0.5
+            elif dis_A[i] > -T0 and dis_A[i] < 0:
+                mark_A[i] = -0.5       
+
+        samples_A_pos = samples_A[np.where(mark_A==0.5)] 
+        samples_A_neg = samples_A[np.where(mark_A == -0.5)]
+        samples_A = samples_A[np.where(np.abs(mark_A)==0.5)]
+        
+        #对于样本集B门限约束固定为1.1
+        T0_B = 1.1
+        num_B = samples_B.shape[0]
+        mark_B = np.zeros(num_B)
+        dis_B = np.zeros(num_B)
+
+        for i in range(num_B):
+            dis_B[i] = self.transform(samples_B[i,:])
+            if dis_B[i] > T0_B:
+                mark_B[i] = 1
+            elif dis_B[i] < -T0_B:
+                mark_B[i] = -1
+            elif dis_B[i] < T0_B and dis_B[i] > 0:
+                mark_B[i] = 0.5
+            elif dis_B[i] > -T0_B and dis_B[i] < 0:
+                mark_B[i] = -0.5       
+
+        samples_B_pos = samples_B[np.where(mark_B==0.5)] 
+        samples_B_neg = samples_B[np.where(mark_B==-0.5)] 
+        samples_B = samples_B[np.where(np.abs(mark_B)==0.5)]
+
+        if samples_B_pos.shape[0] == 0 or samples_B_neg.shape[0] == 0:
+            raise ValueError('infillSample:T0设置过小，区域内没有已采样点')
+
+        #计算样本集A与样本集B的距离
+        distances = self.AssemblageDistance(samples_A_pos,samples_B_pos)
+        L_max = np.max(distances)
+
+        while L_max>T1:
+            pos = np.where(distances==L_max)[0]
+            if samples_C is None:
+                samples_C = samples_A_pos[pos[0],:].reshape((1,-1))
+            else:
+                samples_C = np.vstack((samples_C,samples_A_pos[pos[0],:]))
+            samples_B_pos = np.vstack((samples_B_pos,samples_A_pos[pos[0],:]))
+            samples_A_pos = np.delete(samples_A_pos,pos,axis=0)
+            distances = self.AssemblageDistance(samples_A_pos,samples_B_pos)
+            L_max = np.max(distances)
+
+        distances = self.AssemblageDistance(samples_A_neg,samples_B_neg)
+        L_max = np.max(distances)
+
+        while L_max>T1:
+            pos = np.where(distances==L_max)[0]
+            if samples_C is None:
+                samples_C = samples_A_neg[pos[0],:].reshape((1,-1))
+            else:
+                samples_C = np.vstack((samples_C,samples_A_neg[pos[0],:]))
+            samples_B_neg = np.vstack((samples_B_neg,samples_A_neg[pos[0],:]))
+            samples_A_neg = np.delete(samples_A_neg,pos,axis=0)
+            distances = self.AssemblageDistance(samples_A_neg,samples_B_neg)
+            L_max = np.max(distances)
+
+        if samples_C is None:
+            print('分割超平面两侧点密度达到要求')
+            return samples_C
+
+        plt.scatter(samples_A[:,0],samples_A[:,1],c='r',marker='.')
+        plt.scatter(samples_B[:,0],samples_B[:,1],c='b',marker='.') 
+        plt.scatter(samples_C[:,0],samples_C[:,1],c='c',marker='.')                        
+        plt.xlim(min[0]-0.1,max[0]+0.1)
+        plt.ylim(min[1]-0.1,max[1]+0.1)
+        import time
+        timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+        path = self.path+'/SVM_Photo_{0}.png'.format(timemark)
+        plt.savefig(path)
+        plt.show(5)
+
+
+        return samples_C
+
+Kernal_Polynomial = lambda x,y:(np.dot(x,y)+1)**5
+#分母应该是2×delta××2，为了方便计算只用一个数
+Kernal_Gaussian = lambda x,y:np.exp((-np.linalg.norm(x-y)**2)/2)
 
 def test_Sample0():
     x=np.array([[1,2],[2,3],[3,3],[2,1],[3,2]])
@@ -846,51 +976,131 @@ def test_Sample4():
     samples = np.hstack((samples,mark))
     np.savetxt('./Data/sample4.csv',samples,delimiter=',')
     
+def test_Sample5():
+    '''二次非线性可分，少量样本集，用于检测svm加点算法的功能'''
+    import DOE
+    min = [0,-2]
+    max = [np.pi*2,2]
+    f = lambda x:1.5*np.sin(x)    
+
+    sampleNum = 20
+    latinSamples = DOE.LatinHypercube(dimension=2,num=sampleNum,min=min,max=max)
+    samples = latinSamples.realSamples
+    mark = np.zeros(sampleNum)
+    for index,sample in enumerate(samples):
+        if sample[1]>f(sample[0]):
+            mark[index]=1
+        else:
+            mark[index]=-1
+
+    sample_pos = samples[np.where(mark==1)[0],:]
+    sample_neg = samples[np.where(mark==-1)[0],:]
+    plt.scatter(sample_pos[:,0],sample_pos[:,1])
+    plt.scatter(sample_neg[:,0],sample_neg[:,1])
+    x = np.linspace(min[0],max[0],100)
+    y = f(x)  
+    plt.plot(x,y)
+    plt.show()
+
+    mark = mark.reshape((-1,1))
+    samples = np.hstack((samples,mark))
+    np.savetxt('./Data/sample5.csv',samples,delimiter=',')
+
 def test_SVM():
     '''测试svm算法'''
-    f=lambda x,y:(np.dot(x,y)+1)**3
-
-    path = './Data/sample4.csv'
+    path = './Data/sample5.csv'
     data = np.loadtxt(path,delimiter=',')
     x = data[:,0:2]
     y = data[:,2]
-    svm=SVM(1,kernal=f)
-    svm.fit(x,y,maxIter=1000)
+    svm=SVM(5,kernal=Kernal_Gaussian)
+    svm.fit(x,y,maxIter=50000)
     svm.show()
 
     # svm = SVM(1,kernal=f)
-    # path = '/home/sgdd/Optimization-under-Constraint/Data/SVM_Argument_2019-01-02_09-05-05.txt'
-    # svm.retrain(path,maxIter=10)
+    # path = '/home/sgdd/Optimization-under-Constraint/Data/SVM加点程序测试1/SVM_Argument_2019-01-08_16-47-59.txt'
+    # svm.retrain(path,maxIter=50000)
     # svm.show()   
 
-def test_infill_sample():
-    '''测试svm的加点算法'''
+def test_infill_sample1():
+    '''测试svm的加点算法，循环加点，直到满足终止条件'''
 
-    test_f = lambda x:-x**2+2*x+0.3
-    f=lambda x,y:(np.dot(x,y)+1)**3
+    min = [0,-2]
+    max = [np.pi*2,2]
+    f = lambda x:1.5*np.sin(x)    
+    
 
-    svm = SVM(1,kernal=f)
-    path = '/home/sgdd/Optimization-under-Constraint/Data/SVM加点程序测试1/SVM_Argument_2019-01-02_09-05-05.txt'
-    svm.retrain(path,maxIter=10)
+    path = './Data/sample5.csv'
+    data = np.loadtxt(path,delimiter=',')
+    x = data[:,0:2]
+    y = data[:,2]
+    svm=SVM(5,kernal=Kernal_Gaussian)
+    svm.fit(x,y,maxIter=50000)
+    svm.show()
 
-    x = svm.x
-    y = svm.y
-    new_x = svm.infillSample(0.5,0.2,[0,0],[2,2],[40,40])
-    num = new_x.shape[0]
-    new_y = np.zeros(num)
-    for i in range(num):
-        if new_x[1] > test_f(new_x[0]):
-            new_y[i] = 1
+
+    new_x = svm.infillSample2(0.5,0.2,min,max,[40,40])
+
+    while new_x is not None:
+        num = new_x.shape[0]
+        new_y = np.zeros(num)
+        for i in range(num):
+            if new_x[i,1] > f(new_x[i,0]):
+                new_y[i] = 1
+            else:
+                new_y[i] = -1 
+        x = np.vstack((x,new_x))
+        y = np.append(y,new_y)
+
+        svm.fit(x,y,50000)
+        svm.show()
+        new_x = svm.infillSample2(0.5,0.2,min,max,[40,40])
+
+    print('加点结束')
+
+def test_infill_sample2():
+    '''测试svm的加点算法，固定加点次数'''
+
+    #理论分割函数
+    min = [0,-2]
+    max = [np.pi*2,2]
+    f = lambda x:1.5*np.sin(x)  
+
+    path = './Data/sample5.csv'
+    data = np.loadtxt(path,delimiter=',')
+    x = data[:,0:2]
+    y = data[:,2]
+    svm=SVM(5,kernal=Kernal_Gaussian)
+    svm.fit(x,y,maxIter=50000)
+    svm.show()
+
+    T1_list = [0.6,0.5,0.4]
+    pointNum = np.zeros(len(T1_list)+1)
+    pointNum[0] = x.shape[0]
+
+    for k in range(len(T1_list)):
+        if k < 2:
+            new_x = svm.infillSample1(0.5,T1_list[k],min,max,[40,40])
         else:
-            new_y[i] = -1 
-    x = np.vstack((x,new_x))
-    y = y.extend(new_y)
-    # svm.fit(x,y,5000)
-    svm.show
+            new_x = svm.infillSample2(0.5,T1_list[k],min,max,[40,40])            
+        num = new_x.shape[0]
+        new_y = np.zeros(num)
+        for i in range(num):
+            if new_x[i,1] > f(new_x[i,0]):
+                new_y[i] = 1
+            else:
+                new_y[i] = -1 
+        x = np.vstack((x,new_x))
+        y = np.append(y,new_y)
+        svm.fit(x,y,50000)
+        svm.show()
+        pointNum[k+1] = x.shape[0]
 
+    print('样本点数目：')
+    print(pointNum)
+    print('加点结束')    
 
 
 if __name__=="__main__":
-    # test_Sample4()
-    # test_infill_sample()
-    test_SVM()
+    # test_Sample5()
+    test_infill_sample2()
+    # test_SVM()

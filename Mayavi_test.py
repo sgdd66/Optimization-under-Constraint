@@ -380,7 +380,7 @@ class DataVisual(object):
         mlab.show()
 
 
-def showData(path):
+def showKrigingData(path):
         
     graphData = []  
     pointData = []  
@@ -473,16 +473,40 @@ def showData(path):
     # mlab.show()
 
 
+def test():
+    # f = lambda x,y:-(np.sin(2*np.pi*x)**3*np.sin(2*np.pi*y))/(x**3*(x+y))
+    f = lambda x:-(np.sin(2*np.pi*x[0])**3*np.sin(2*np.pi*x[1]))/(x[0]**3*(x[0]+x[1]))
+
+    min = [0.001,0.001]
+    max = [10,10]
+    # x = np.linspace(min[0],max[0],10)
+    # y = np.linspace(min[1],max[1],10)
+    # mesh_x,mesh_y = np.meshgrid(x,y)
+
+    mesh_x ,mesh_y = np.mgrid[min[0]:max[0]:100j,min[1]:max[1]:100j]
+    v = np.zeros_like(mesh_x)
+
+    for i in range(mesh_x.shape[0]):
+        for j in range(mesh_x.shape[1]):
+            p = np.array([mesh_x[i,j],mesh_y[i,j]])
+            v[i,j] = f(p)
+
+    mlab.figure(size=[1024,800])
+    mlab.imshow(mesh_x,mesh_y,v)
+    mlab.show()
+
 if __name__=='__main__':
     # test=DataVisual()
-    # test.test18()
-    # showData('./Data/Kriging_True_Model.txt')
-    # showData('./Data/Kriging_Predicte_Model.txt')  
-    # showData('./Data/Kriging_Varience_Model.txt')   
-    root_path = '/home/sgdd/Optimization-under-Constraint/Data/Kriging加点模型测试4'
-    for g in range(1,11):
-        for k in range(20):
-            path = root_path+'/%d/Kriging_Predicte_Model_%d.txt'%(g,k)
-            showData(path)
-            path = root_path+'/%d/Kriging_Varience_Model_%d.txt'%(g,k)       
-            showData(path)
+    # test.test13()
+    # showKrigingData('./Data/Kriging_True_Model.txt')
+    # showKrigingData('./Data/Kriging_Predicte_Model.txt')  
+    # showKrigingData('./Data/Kriging_Varience_Model.txt')   
+    # root_path = '/home/sgdd/Optimization-under-Constraint/Data/Kriging加点模型测试4'
+    # for g in range(1,11):
+    #     for k in range(20):
+    #         path = root_path+'/%d/Kriging_Predicte_Model_%d.txt'%(g,k)
+    #         showKrigingData(path)
+    #         path = root_path+'/%d/Kriging_Varience_Model_%d.txt'%(g,k)       
+    #         showKrigingData(path)
+
+    test()

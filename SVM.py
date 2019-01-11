@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # ***************************************************************************
 # Copyright (c) 2018 西安交通大学
 # All rights reserved
@@ -15,9 +17,6 @@
 # ------------- 		-------  ------------------------  
 # ***************************************************************************
 
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -29,18 +28,16 @@ class SVM(object):
     输入：\n
     kernal ： 核函数，如果不输入默认为欧式空间内积计算方法\n
     C ： 误分类惩罚因子
+    path : 训练日志输出目录
 
     输出：\n
     无返回
     """
-    def __init__(self,C,kernal=None):
+    def __init__(self,C,kernal,path):
 
         self.C=C
-        self.path = './Data/SVM加点程序测试2'
-        if(kernal is None):
-            self.Kernal=lambda x,y:np.sum(x*y)
-        else:
-            self.Kernal=kernal
+        self.path = path
+        self.Kernal=kernal
 
     def fit(self,x,y,maxIter=100):
         '''
@@ -832,6 +829,8 @@ Kernal_Polynomial = lambda x,y:(np.dot(x,y)+1)**5
 #分母应该是2×delta××2，为了方便计算只用一个数
 Kernal_Gaussian = lambda x,y:np.exp((-np.linalg.norm(x-y)**2)/2)
 
+Kernal_Euclid = lambda x,y:np.sum(x*y)
+
 def test_Sample0():
     x=np.array([[1,2],[2,3],[3,3],[2,1],[3,2]])
     y=np.array([1,1,1,-1,-1])
@@ -1012,7 +1011,7 @@ def test_SVM():
     data = np.loadtxt(path,delimiter=',')
     x = data[:,0:2]
     y = data[:,2]
-    svm=SVM(5,kernal=Kernal_Gaussian)
+    svm = SVM(5,Kernal_Gaussian,'./Data')
     svm.fit(x,y,maxIter=50000)
     svm.show()
 
@@ -1033,7 +1032,7 @@ def test_infill_sample1():
     data = np.loadtxt(path,delimiter=',')
     x = data[:,0:2]
     y = data[:,2]
-    svm=SVM(5,kernal=Kernal_Gaussian)
+    svm=SVM(5,Kernal_Gaussian,'./Data')
     svm.fit(x,y,maxIter=50000)
     svm.show()
 
@@ -1069,7 +1068,7 @@ def test_infill_sample2():
     data = np.loadtxt(path,delimiter=',')
     x = data[:,0:2]
     y = data[:,2]
-    svm=SVM(5,kernal=Kernal_Gaussian)
+    svm=SVM(5,kernal=Kernal_Gaussian,path = './Data')
     svm.fit(x,y,maxIter=50000)
     svm.show()
 

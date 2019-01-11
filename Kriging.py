@@ -31,14 +31,15 @@ class Kriging(object):
     初始化函数，构建对象，无参数。调用fit()函数训练模型。调用transform()返回预测值与方差。
     '''
 
-    def fit(self,X,Y,min=None,max=None):
+
+    def fit(self,X,Y,min=None,max=None,theta=None):
         """
         输入样本点，完成kriging建模,默认theta=[1...1],p=[2...2]\n
         输入：\n
         X : 样本点，n行d列，d是点的维度，n是点的数目\n
         Y : 样本点对应的值，n维向量\n    
         min&max : d维向量，表示拟合空间的范围，用以对数据进行归一化。如果min和max都等于none，说明点数据已经是归一化之后的数据\n
-
+        theta : 一维向量，计算相关矩阵的参数，如果为空默认为[1,...,1]\n
         输出：无，使用transform获取建模结果
         """        
         num=X.shape[0]
@@ -54,7 +55,12 @@ class Kriging(object):
         self.max = max
 
         self.p = np.zeros(d)+2
-        self.theta=np.zeros(d)+10
+
+        if theta is None:
+            self.theta = np.zeros(d)+1
+        else:
+            self.theta = theta
+
         self.R = np.zeros((num, num))
 
         self.log_likelihood(self.theta)
@@ -112,31 +118,27 @@ class Kriging(object):
         #     return -1000
         return lgL
 
-    def optimize(self,maxGen,ADE_path=None):
+    def optimize(self,maxGen,ADE_path):
         '''
         通过自适应差分进化算法，计算kriging模型中的theta参数，至于参数p设定为2。获取kriging的超参数后建立kriging的模型\n
         输入：\n
         maxGen : 差分进化计算的迭代次数\n
-        ADE_path : 差分进化算法种群参数文件，如果为空使用拉丁超立方选择种群，否则从文本中读取。
+        ADE_path : 差分进化算法种群参数文件输出位置。\n
         输出：\n
-        无
+        theta : theta的设定参数
         '''
         # 设置计算相关系数中所使用的theta
         d=self.X.shape[1]
         #min和max是差分进化算法的寻优空间，也就是theta的取值空间
-        min=np.zeros(d)
-        max=np.zeros(d)+1
+        min=np.zeros(d)+0.001
+        max=np.zeros(d)+100
         test = ADE.ADE(min, max, 100, 0.5, self.log_likelihood,False)
-        if ADE_path is None:
-            ind = test.evolution(maxGen=maxGen)
-            import time
-            timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
-            path = './Data/ADE_Population_Argument_{0}.txt'.format(timemark)
-            test.saveArg(path)
-        else:
-            ind = test.retrain(ADE_path,maxGen)
-            test.saveArg(ADE_path)
+        ind = test.evolution(maxGen=maxGen)
+        test.saveArg(ADE_path)
+
         self.log_likelihood(ind.x)
+
+        return ind.x
 
     def transform(self,X):
         '''
@@ -180,7 +182,7 @@ class Kriging(object):
         return y, s
 
     def get_Y(self,X):
-        '''计算响应面设计点的值\n
+        '''计算响应面设计点的期望\n
         input:\n
         x : 一维向量，采样点的坐标位置\n
         output:\n
@@ -203,6 +205,43 @@ class Kriging(object):
         y=self.beta0+np.dot(y,factor)
 
         return y
+
+    def get_S(self,X):
+        '''计算响应面设计点的方差\n
+        input:\n
+        x : 一维向量，采样点的坐标位置\n
+        output:\n
+        s : 响应面的估计值
+        '''
+        num=self.X.shape[0]
+        x = np.zeros_like(X)
+        if self.min is not None:
+            for i in range(x.shape[0]):
+                x[i]=(X[i]-self.min[i])/(self.max[i]-self.min[i])
+        else:
+            x = X
+
+        r=np.zeros((num,1))
+        for i in range(0,num):
+            r[i]=self.correlation(self.X[i,:],x)
+        F=np.zeros((num,1))+1
+        R_1=self.R_1
+
+        f1=np.dot(F.T,R_1)
+        f1=(1-np.dot(f1,r))**2
+        f2=np.dot(F.T,R_1)
+        f2=np.dot(f2,F)
+        f1=f1/f2
+        f2=np.dot(r.T,R_1)
+        f2=np.dot(f2,r)
+        if f2>1:
+            f2 = 1
+        s = self.sigma2*(1-f2+f1)
+        if s<0:
+            print(s)
+        s=np.sqrt(s) 
+
+        return s        
 
     def uniform(self,points,min,max):
         """将样本点归一化
@@ -297,10 +336,28 @@ class Kriging(object):
             min = self.min
             max = self.max
         ade = ADE.ADE(min, max, 100, 0.5, self.GEI,isMin=False)
-        opt_ind = ade.evolution(maxGen=500)
-        ade.saveArg('./Data/ADE_GEI_Optimum.txt')
+        opt_ind = ade.evolution(maxGen=50000)
+        # ade.saveArg('./Data/ADE_GEI_Optimum.txt')
         return opt_ind.x
-        
+
+    def nextPoint_Varience(self):
+        '''选择方差最大的设计点作为下一轮的加点
+        input : \n
+        none \n
+        output :\n
+        x : 一维向量，代表需要计算的采样点'''
+        dim = self.X.shape[1]
+        if self.min is None:
+            min = np.zeros(dim)
+            max = np.zeros(dim)+1
+        else:
+            min = self.min
+            max = self.max
+        ade = ADE.ADE(min, max, 100, 0.5, self.get_S ,isMin=False)
+        opt_ind = ade.evolution(maxGen=50000)
+        # ade.saveArg('./Data/ADE_GEI_Optimum.txt')
+        return opt_ind.x
+
 
 
 def writeFile(graphData=[],pointData=[],path=None):

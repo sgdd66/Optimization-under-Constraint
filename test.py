@@ -403,42 +403,12 @@ def test22():
     print(max_col)
 
 def test23():
-    f = lambda x:-(np.sin(2*np.pi*x[0])**3*np.sin(2*np.pi*x[1]))/(x[0]**3*(x[0]+x[1]))
-    g1 = lambda x:x[0]**2-x[1]+1
-    g2 = lambda x:1-x[0]+(x[1]-4)**2
-    min = [0,0]
-    max = [10,10]
-    x = np.linspace(min[0],max[0],100)
-    y = np.linspace(min[1],max[1],100)
-    mesh_x,mesh_y = np.meshgrid(x,y)
-    mesh_x = mesh_x.flatten().reshape((-1,1))
-    mesh_y = mesh_y.flatten().reshape((-1,1))
-    mesh = np.hstack((mesh_x,mesh_y))
+    l1 = [2,3]
+    l2 = np.array([[3,4],[2,3]])
+    print(len(l1))
+    print(len(l2))
+    print(l1.shape)
 
-    v = np.zeros(mesh.shape[0])
-    mark = np.zeros(mesh.shape[0])
-    for i in range(mesh.shape[0]):
-        v[i] = f(mesh[i])
-        g = g1(mesh[i])
-        if g>0:
-            mark[i] = -1
-            continue
-        g = g2(mesh[i])
-        if g>0:
-            mark[i] = -1
-        else:
-            mark[i] = 1
-
-    x = mesh_x[np.where(mark==1)]
-    y = mesh_y[np.where(mark==1)]
-    plt.scatter(x,y,c='pink',marker='.')
-    x = mesh_x[np.where(mark==-1)]
-    y = mesh_y[np.where(mark==-1)]
-    plt.scatter(x,y,c='lightsteelblue',marker='.')    
-
-    plt.show()
-
-    
         
 
 

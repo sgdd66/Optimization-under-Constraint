@@ -451,18 +451,21 @@ def showKrigingData(path):
     graph = mlab.imshow(graphData[0],graphData[1],graphData[2])
     # mlab.surf(x,y,s)
 
-    x = pointData[0][0:21,0]
-    y = pointData[0][0:21,1]
-    z = np.zeros(21)
+ 
+    x = pointData[0][:,0]
+    y = pointData[0][:,1]
+    z = np.zeros_like(x)
 
     mlab.points3d(x,y,z,scale_factor=0.25)
 
-    x = pointData[0][21:,0]
-    y = pointData[0][21:,1]
-    newPointNum = x.shape[0]
-    z = np.zeros(newPointNum)
-    c = np.linspace(1,2,newPointNum)
-    mlab.points3d(x,y,z,c,colormap="copper", scale_factor=.25)
+    # 点的大小和颜色随顺序变化
+    # x = pointData[0][:,0]
+    # y = pointData[0][:,1]
+    # newPointNum = x.shape[0]
+    # z = np.zeros(newPointNum)
+    # c = np.linspace(1,2,newPointNum)
+    # mlab.points3d(x,y,z,c,colormap="copper", scale_factor=.25)
+
     # mlab.outline()
     # mlab.axes(xlabel='x', ylabel='y', zlabel='z')
     mlab.colorbar(graph,'value',orientation='vertical',label_fmt='%.2f')
@@ -498,15 +501,13 @@ def test():
 if __name__=='__main__':
     # test=DataVisual()
     # test.test13()
-    # showKrigingData('./Data/Kriging_True_Model.txt')
-    # showKrigingData('./Data/Kriging_Predicte_Model.txt')  
-    # showKrigingData('./Data/Kriging_Varience_Model.txt')   
-    # root_path = '/home/sgdd/Optimization-under-Constraint/Data/Kriging加点模型测试4'
-    # for g in range(1,11):
-    #     for k in range(20):
-    #         path = root_path+'/%d/Kriging_Predicte_Model_%d.txt'%(g,k)
-    #         showKrigingData(path)
-    #         path = root_path+'/%d/Kriging_Varience_Model_%d.txt'%(g,k)       
-    #         showKrigingData(path)
+    showKrigingData('./Data/约束优化算法测试1/Kriging_True_Model.txt')
+    showKrigingData('./Data/约束优化算法测试1/Kriging_Predicte_Model.txt')  
+    showKrigingData('./Data/约束优化算法测试1/Kriging_Varience_Model.txt')   
+    root_path = '/home/sgdd/Optimization-under-Constraint/Data/约束优化算法测试1'
+    for g in range(10):
+        path = root_path+'/Kriging_Predicte_Model_%d.txt'%g
+        showKrigingData(path)
+        path = root_path+'/Kriging_Varience_Model_%d.txt'%g       
+        showKrigingData(path)
 
-    test()

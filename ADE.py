@@ -89,7 +89,7 @@ class ADE(object):
     None
     """    
     def __init__(self,min,max,population,CR,environment,isMin=True):
-        samples=DOE.LatinHypercube(dimension=min.shape[0],num=population,min=min,max=max)
+        samples=DOE.LatinHypercube(dimension=len(min),num=population,min=min,max=max)
         self.Inds=[]
         for i in range(population):
             ind=Ind(location=samples.realSamples[i,:])
@@ -101,7 +101,7 @@ class ADE(object):
         self.min=min
         self.max=max
         #Pm是变异率，eta是分布指数，这两个参数是多项式变异环节使用的参数
-        self.Pm=1/(min.shape[0])
+        self.Pm=1/(len(min))
         self.eta=20
 
     def aberrance(self):

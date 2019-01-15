@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # ***************************************************************************
 # Copyright (c) 2019 西安交通大学
 # All rights reserved
@@ -15,11 +17,9 @@
 # ------------- 		-------  ------------------------  
 # ***************************************************************************
 
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 from Kriging import Kriging,writeFile
-from SVM import SVM
+from SVM import SVM,Kernal_Gaussian,Kernal_Polynomial
 from DOE import LatinHypercube
 import numpy as np
 
@@ -53,7 +53,7 @@ class TestFunction_G8(object):
         if len(x) != self.dim:
             raise ValueError('isOK：参数维度与测试函数维度不匹配')
         
-        if x[0] < min[0] or x[0] > max[0] or x[1] < min[1] or x[1] > max[1] :
+        if x[0] < self.min[0] or x[0] > self.max[0] or x[1] < self.min[1] or x[1] > self.max[1] :
             raise ValueError('isOK: 参数已超出搜索空间')
 
         for g in self.constrain:
@@ -61,8 +61,10 @@ class TestFunction_G8(object):
                 return -1
         return 1
 
-def plan1():
-
+def stepA_1():
+    '''
+    步骤A的第一种版本，加点过程是确定数目的，并以方差为优化目标，降低全局的不确定性
+    '''
     f = TestFunction_G8()
     min = f.min
     max = f.max
@@ -134,9 +136,95 @@ def plan1():
         path = './Data/约束优化算法测试1/Kriging_Varience_Model_%d.txt'%k
         writeFile([x,y,varience],[realSample,value],path)
 
+    #检测样本点中是否有可行解，如果没有继续加点
+    mark = np.zeros(realSample.shape[0])
+    for i in range(realSample.shape[0]):
+        mark[i] = f.isOK(realSample[i,:])
     
+    if np.sum(mark==1)>0:
+        value = value.reshape((-1,1))
+        mark = mark.reshape((-1,1))
+        storeData = np.hstack((realSample,value,mark))
+        np.savetxt('./Data/约束优化算法测试1/samples1.txt',storeData)
+        return
+
+    
+    i = 0
+    while mark[-1]==-1:
+        i += 1
+        print('第%d次加点'%(iterNum+i))
+        nextSample = kriging.nextPoint_Varience()
+        realSample = np.vstack([realSample,nextSample])
+        value = np.append(value,f.aim(nextSample))
+        mark = np.append(mark,f.isOK(nextSample))
+        kriging.fit(realSample, value, min, max, theta)
+        # kriging.optimize(100)
+
+        #遍历响应面
+        print('正在遍历响应面...')
+        for i in range(0,x.shape[0]):
+            for j in range(0,x.shape[1]):
+                a=[x[i, j], y[i, j]]
+                preValue[i,j],varience[i,j]=kriging.transform(np.array(a))
+
+        path = './Data/约束优化算法测试1/Kriging_Predicte_Model_%d.txt'%(iterNum+i)
+        writeFile([x,y,preValue],[realSample,value],path)
+        path = './Data/约束优化算法测试1/Kriging_Varience_Model_%d.txt'%(iterNum+i)
+        writeFile([x,y,varience],[realSample,value],path)
+
+    value = value.reshape((-1,1))
+    mark = mark.reshape((-1,1))
+    storeData = np.hstack((realSample,value,mark))
+    np.savetxt('./Data/约束优化算法测试1/samples1.txt',storeData)
+
+def stepB_1():
+    '''
+    步骤B的第一种版本，固定加点次数
+
+    '''  
+    '''测试svm的加点算法，固定加点次数'''
+
+    #理论分割函数
+    f = TestFunction_G8()
+    data = np.loadtxt('./Data/约束优化算法测试1/samples1.txt')
+    samples = data[:,0:2]
+    mark = data[:,3]
 
 
+    svm=SVM(5,kernal=Kernal_Polynomial,path = './Data/约束优化算法测试1')
+    svm.fit(samples,mark,maxIter=50000)
+    svm.show()
 
+    T1_list = [1,0.8,0.6,0.4]
+    pointNum = np.zeros(len(T1_list)+1)
+    pointNum[0] = samples.shape[0]
+
+    for k in range(len(T1_list)):
+        if k < 4:
+            new_x = svm.infillSample1(0.5,T1_list[k],f.min,f.max,[40,40])
+        else:
+            new_x = svm.infillSample2(0.5,T1_list[k],f.min,f.max,[40,40])            
+        num = new_x.shape[0]
+        if num == 0:
+            print('当T1设置为%.2f时，加点数目为0'%T1_list[k])
+            pointNum[k+1] = samples.shape[0]
+            continue
+        new_y = np.zeros(num)
+        for i in range(num):
+            new_y[i] = f.isOK(new_x[i,:])
+        samples = np.vstack((samples,new_x))
+        mark = np.append(mark,new_y)
+        svm.fit(samples,mark,100000)
+        svm.show()
+        pointNum[k+1] = samples.shape[0]
+
+    print('样本点数目：')
+    print(pointNum)
+    print('加点结束')    
+
+def stepC_1():
+    svm=SVM(5,kernal=Kernal_Polynomial,path = './Data/约束优化算法测试1')
+    svm.retrain('./Data/约束优化算法测试1/SVM_Argument_2019-01-15_11-41-00.txt',maxIter=1)
+    
 if __name__=='__main__':
-    plan1()
+    stepB_1()

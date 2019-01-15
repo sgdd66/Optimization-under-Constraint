@@ -202,11 +202,11 @@ class SVM(object):
     def retrain(self,path,maxIter=100):
         '''读取参数文件重新训练\n
 
-        输入：\n
+        input ：\n
         path : 参数文件的文件路径\n
         maxIter : 新一轮训练的最大迭代次数\n
 
-        输出：无\n
+        output ：无\n
         '''
         import re 
         with open(path,'r') as file:
@@ -437,11 +437,11 @@ class SVM(object):
         '''
         展示SMO算法求解的结果，仅限于二维展示
         '''
-        #绘制标准分割线
-        test_f = lambda x:1.5*np.sin(x)
-        x = np.linspace(0,2*np.pi,100)
-        y = test_f(x)
-        plt.plot(x,y)
+        # #绘制标准分割线
+        # test_f = lambda x:1.5*np.sin(x)
+        # x = np.linspace(0,2*np.pi,100)
+        # y = test_f(x)
+        # plt.plot(x,y)
 
         #绘制背景底色
         x_min = np.min(self.x,axis=0)

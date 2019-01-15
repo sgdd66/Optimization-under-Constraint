@@ -405,9 +405,8 @@ def test22():
 def test23():
     l1 = [2,3]
     l2 = np.array([[3,4],[2,3]])
-    print(len(l1))
-    print(len(l2))
-    print(l1.shape)
+
+    print(np.where(l2 == 1))
 
         
 

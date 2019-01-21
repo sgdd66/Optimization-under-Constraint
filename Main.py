@@ -22,6 +22,7 @@ from Kriging import Kriging,writeFile
 from SVM import SVM,Kernal_Gaussian,Kernal_Polynomial
 from DOE import LatinHypercube
 import numpy as np
+from ADE import ADE
 
 class TestFunction_G8(object):
     '''测试函数G8:\n
@@ -222,9 +223,144 @@ def stepB_1():
     print(pointNum)
     print('加点结束')    
 
+def 
+
 def stepC_1():
+    '''步骤C的第一种版本'''
+    #违反约束的惩罚系数
+    penalty = 10000
+
+    # 加载支持向量机
     svm=SVM(5,kernal=Kernal_Polynomial,path = './Data/约束优化算法测试1')
     svm.retrain('./Data/约束优化算法测试1/SVM_Argument_2019-01-15_11-41-00.txt',maxIter=1)
     
+    # 提取已采样样本的坐标，值，是否违反约束的标志
+    samples = svm.x
+    value = np.zeros(samples.shape[0])
+    mark = np.zeros(samples.shape[0])
+    testFunc = TestFunction_G8()
+    for i in range(samples.shape[0]):
+        value[i] = testFunc.aim(samples[i,:])
+        mark[i] = testFunc.isOK(samples[i,:])
+
+    #空间缩减，保留可行域外围1.1倍区域的超立方空间，避免因点数过多引起的计算冗余
+
+    scale_min = np.zeros(testFunc.dim)
+    scale_max = np.zeros(testFunc.dim)
+    for i in range(testFunc.dim):
+        down = min(samples[:,i])
+        up = max(samples[:,i])
+        scale_min[i] = down - (up-down)*0.1
+        scale_max[i] = up + (up-down)*0.1
+
+    l = []
+    for i in range(samples.shpae[0]):
+        if samples[i,0]<scale_min[0] or samples[i,1]<scale_min[1] \
+        or samples[i,0]>scale_max[0] or samples[i,1]>scale_max[1]:
+            l.append(i)
+    samples = np.delete(samples,l,axis=0)
+    value = np.delete(value,l)
+    mark = np.delete(mark,l)
+
+
+
+
+    #建立响应面
+    kriging = Kriging()
+    theta = [32.22803739, 18.58997951] 
+    kriging.fit(samples, value, testFunc.min, testFunc.max, theta)
+    
+    # print('正在优化theta参数....')
+    # theta = kriging.optimize(10000,'./Data/约束优化算法测试1/ADE_theta.txt')
+
+    # 搜索kriging模型在可行域中的最优值
+    def kriging_optimum(x):
+        y = kriging.get_Y(x)
+        penaltyItem = penalty*min(0,svm.transform(x))
+        return y-penaltyItem
+
+    ade = ADE(testFunc.min, testFunc.max, 100, 0.5, kriging_optimum,True)
+    print('搜索kriging模型在约束区间的最优值.....')
+    opt_ind = ade.evolution(maxGen=100000)
+
+    kriging.optimumLocation = opt_ind.x
+    kriging.optimum = kriging.get_Y(opt_ind.x)
+
+    #目标函数是EI函数和约束罚函数的组合函数
+
+    def EI_optimum(x):
+        ei = kriging.EI(x)
+        penaltyItem = penalty*min(0,svm.transform(x))
+        return ei + penaltyItem
+
+
+    iterNum = 0
+    maxIterNum = 50
+    smallestDistance = 0.01
+    last_sample = None
+
+    while True:
+        print('第%d轮加点.........'%iterNum)
+
+        # 寻找目标函数的最优值
+        ade = ADE(testFunc.min, testFunc.max, 100, 0.5, EI_optimum,False)
+        print('搜索EI函数在约束区间的最优值.....')
+        opt_ind = ade.evolution(maxGen=100000)
+
+        # 检查新样本点是否满足约束，并检查SVM判定结果。
+        # 如果SVM判定失误，重新训练SVM模型
+        # 如果SVM判定正确，但是采样点不满足约束，惩罚系数×2。
+        new_sample = opt_ind.x
+        new_value = testFunc.aim(new_sample)
+        new_mark = testFunc.isOK(new_sample)
+        mask_svm = svm.transform(new_sample)    
+
+        samples = np.vstack((samples,new_sample))
+        value = np.append(value,new_value)
+        mark = np.append(mark,new_mark)
+
+        if (new_mark == -1 and mask_svm > 0) or (new_mark == 1 and mask_svm < 0):
+            print('新采样点的计算结果与SVM判定不符，重新训练SVM模型.......')
+            svm.fit(samples,mark,100000)
+            svm.show()
+
+        if new_mark == -1 and mask_svm<0:
+            print('新采样点位于违反约束区域，惩罚系数乘2')
+            penalty *= 2
+
+
+
+        # 判断终止条件
+        if iterNum > 0:
+            iterDis = np.linalg.norm(new_sample-last_sample)
+            print('与上次采样点距离：%.4f'%iterDis)      
+
+            if iterNum > maxIterNum:
+                print('达到最大迭代次数，计算终止！！！')
+                break
+            if iterDis<smallestDistance:
+                print('新采样点与上轮采样点距离小于最小距离，计算终止！！！')
+                break
+
+        iterNum += 1
+        last_sample = new_sample     
+        
+        kriging.fit(samples, value, testFunc.min, testFunc.max, theta)
+        ade = ADE(testFunc.min, testFunc.max, 100, 0.5, kriging_optimum ,True)
+        print('搜索kriging模型在约束区间的最优值.....')
+        opt_ind = ade.evolution(maxGen=100000)
+
+        kriging.optimumLocation = opt_ind.x
+        kriging.optimum = kriging.get_Y(opt_ind.x)
+
+        Data = np.hstack((samples,value,mark))
+        np.savetxt('./Data/约束优化算法测试1/优化结果.txt',Data,delimiter='\t')
+
+
+
+
+
+
+
 if __name__=='__main__':
-    stepB_1()
+    stepC_1()

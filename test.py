@@ -403,18 +403,42 @@ def test22():
     print(max_col)
 
 def test23():
-    l1 = [2,3]
-    l2 = np.array([[3,4],[2,3]])
+    g1 = lambda x:x[0]**2-x[1]+1
+    g2 = lambda x:1-x[0]+(x[1]-4)**2
 
-    print(np.where(l2 == 1))
+    x, y = np.mgrid[0:10:100j,0:10:100j]
+    mark = np.zeros_like(x)
 
-        
+    for i in range(x.shape[0]):
+        for j in range(x.shape[1]):
+            a = [x[i,j],y[i,j]]
+            if g1(a)<0 and g2(a)<0:
+                mark[i,j] = 1
+            else:
+                mark[i,j] = -1
+
+    x = x[mark==1]
+    y = y[mark==1]
+    plt.scatter(x,y)
+    a = (1.2279713, 4.2453733)
+    plt.scatter(a[0],a[1])
+    plt.show()
+    
+    print(min(x),max(x))
+    print(min(y),max(y))
+
+def test24():
+    a = np.array([[2,3],[4,5]])
+    a = np.delete(a,1,axis=0)
+    print(a)
+
+ 
 
 
 
 
 if __name__=='__main__':
-    test23()
+    test24()
 
 
 

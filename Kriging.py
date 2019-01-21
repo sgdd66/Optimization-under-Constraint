@@ -23,7 +23,7 @@ import ADE
 import matplotlib.pyplot as plt
 import DOE
 from scipy.stats import norm
-
+from scipy.special import comb
 
 
 class Kriging(object):
@@ -282,7 +282,7 @@ class Kriging(object):
         input :\n
         isMin : 布尔变量\n
         output : \n
-        optimum : 响应面全局最优值
+        不直接返回计算结果，将全局最优值存储在self.optimum，全局最优值的坐标存储在self.optimumLocation
         '''
         dim = self.X.shape[1]
         if self.min is None:
@@ -292,15 +292,22 @@ class Kriging(object):
             min = self.min
             max = self.max
         ade = ADE.ADE(min, max, 100, 0.5, self.get_Y,isMin)
-        opt_ind = ade.evolution(maxGen=500)
-        ade.saveArg('./Data/ADE_Kriging_optimum.txt')
-        optimum = self.get_Y(opt_ind.x)
-        return optimum
+        print('搜索响应面最优值.....')
+        opt_ind = ade.evolution(maxGen=100000)
+
+        self.optimumLocation = opt_ind.x
+        self.optimum = self.get_Y(opt_ind.x)
 
     def GEI(self,x):
+        '''
+        计算设计点x的GEI函数值，在调用该函数前必须调用global_optimum()获取全局最优值。\n
+        input : \n
+        x : 一维向量，采样点的坐标值\n
+        output : \n
+        gei : gei函数值
+        '''
         g = self.g
-        from scipy.stats import norm
-        from scipy.special import comb
+
         y,s = self.transform(x)
         u = (self.optimum-y)/s
 
@@ -316,6 +323,24 @@ class Kriging(object):
         gei = s**g*gei
         return gei 
 
+    def EI(self,x):
+        '''
+        计算每一个点的EI函数，在调用该函数前必须调用global_optimum()获取全局最优值。\n
+        input : \n
+        x : 一维向量，采样点的坐标值\n
+        output : \n
+        ei : ei函数值
+        '''
+        xi = 0.01
+        y,s = self.transform(x)
+        if s != 0:
+            u = (self.optimum-y-xi)/s
+        else:
+            u = 0
+        
+        ei = (self.optimum-y-xi)*norm.cdf(u)+s*norm.pdf(u)
+        return ei
+
     def nextPoint_GEI(self,g):
         '''
         针对求解全局最小值的情况，应用GEI样本填充准则，寻找下一个采样点\n
@@ -326,7 +351,7 @@ class Kriging(object):
         
         '''
         self.g = g
-        self.optimum = self.global_optimum()
+        self.global_optimum()
 
         dim = self.X.shape[1]
         if self.min is None:

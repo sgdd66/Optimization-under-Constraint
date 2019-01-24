@@ -428,13 +428,12 @@ def test23():
     print(min(y),max(y))
 
 def test24():
-    a = np.array([[2,3],[4,5]])
-    a = np.delete(a,1,axis=0)
-    print(a)
+    a = np.array([0, 2, 2])
+    print('a=',a,'b=',a)
+    
+[15.62938679  6.68018277]
 
- 
-
-
+-6.55113332733848，最优点[ 0.22829938 -1.62554274]
 
 
 if __name__=='__main__':

@@ -30,8 +30,6 @@ class Kriging(object):
     '''
     初始化函数，构建对象，无参数。调用fit()函数训练模型。调用transform()返回预测值与方差。
     '''
-
-
     def fit(self,X,Y,min=None,max=None,theta=None):
         """
         输入样本点，完成kriging建模,默认theta=[1...1],p=[2...2]\n
@@ -333,10 +331,10 @@ class Kriging(object):
         '''
         xi = 0.01
         y,s = self.transform(x)
-        if s != 0:
+        if abs(s) > 0.000001:
             u = (self.optimum-y-xi)/s
         else:
-            u = 0
+            return 0
         
         ei = (self.optimum-y-xi)*norm.cdf(u)+s*norm.pdf(u)
         return ei
@@ -671,7 +669,246 @@ def test_Kriging_GEI_Edition1():
             path2 = path+'/Kriging_Varience_Model_%d.txt'%k
             writeFile([x,y,varience],[realSample,value],path2)
 
+def filterSamples(nextSamples,samples,smallestDistance):
+    '''为防止新加点与之前的点过于接近，导致矩阵病态，筛选新加点\n
+    input : \n
+    nextSamples : 二维矩阵，每一行为一个待添加的样本点\n
+    samples : 二维矩阵，每一行为一个已采样的样本点\n
+    smallestDistance : float，欧氏距离小于这个值的两个点将被认为同一个点\n
+    output : \n
+    nextSamples : 将筛选之后的样本返回'''
+    calculatedSampleNum = samples.shape[0]
+    nextSamplesNum = nextSamples.shape[0]
 
+    #与原有样本点距离小于最小距离限制，删除该样本
+    deletedSampleIndex = []
+    for i in range(nextSamplesNum):
+        for j in range(calculatedSampleNum):
+            if np.linalg.norm(nextSamples[i,:]-samples[j,:])<smallestDistance:
+                deletedSampleIndex.append(i)
+                break
+    
+    if len(deletedSampleIndex)>0:
+        nextSamples = np.delete(nextSamples,deletedSampleIndex,axis=0)
+
+    #新加样本点之间距离小于最小距离限制，删除其中一个
+    nextSamplesNum = nextSamples.shape[0]
+    if nextSamplesNum<=1:
+        return nextSamples
+    distanceMatrix = np.zeros((nextSamplesNum,nextSamplesNum))+smallestDistance+1
+
+    for i in range(nextSamplesNum):
+        for j in range(i+1,nextSamplesNum):
+            distanceMatrix[i,j] = np.linalg.norm(nextSamples[i,:]-nextSamples[j,:])
+    
+    deletedSampleIndex = np.where(distanceMatrix<smallestDistance)
+    deletedSampleIndex = list(set(deletedSampleIndex[0]))
+    if len(deletedSampleIndex)>0:
+        nextSamples = np.delete(nextSamples,deletedSampleIndex,axis=0)  
+
+    return nextSamples      
+
+def test_Kriging_EI():
+    '''测试EI加点法则'''
+
+    #数据存储文件夹
+    root_path = './Data/Kriging_EI加点模型测试1'
+    import os 
+    if not os.path.exists(root_path):
+        os.makedirs(root_path) 
+    
+    # Brain函数
+    func = func_Brain  
+    min = np.array([-5, 0])
+    max = np.array([10, 15])
+
+    # # leak函数
+    # func = func_leak
+    # min = np.array([-3, -3])
+    # max = np.array([3, 3])
+
+    #遍历设计空间
+    x, y = np.mgrid[min[0]:max[0]:100j, min[1]:max[1]:100j]
+    s = np.zeros_like(x)
+    for i in range(x.shape[0]):
+        for j in range(x.shape[1]):
+            a = [x[i, j], y[i, j]]
+            s[i, j] = func(a)
+
+    path = root_path+'/Kriging_True_Model.txt'
+    writeFile([x,y,s],[],path)
+
+    #生成样本点
+    # sampleNum=21
+    # lh=DOE.LatinHypercube(2,sampleNum,min,max)
+    # samples=lh.realSamples
+    # np.savetxt(root_path+'/samples.txt',samples,delimiter=',')
+
+    samples = np.loadtxt(root_path+'/samples.txt',delimiter=',')
+    sampleNum = samples.shape[0]
+
+    value=np.zeros(sampleNum)
+    for i in range(0,sampleNum):
+        a = [samples[i, 0], samples[i, 1]]
+        value[i]=func(a)
+    
+    #建立响应面
+    kriging = Kriging()
+    # theta = [50.20339025,29.31266072]
+    # kriging.fit(samples, value, min, max,theta)
+    
+    kriging.fit(samples, value, min, max)
+    print('搜索theta.......')
+    theta = kriging.optimize(1000,root_path+'/kriging_optimize_theta.txt')
+
+    kriging.global_optimum(True)    
+
+    iterNum = 100    #加点数目
+    preValue = np.zeros_like(x)
+    EI_Value = np.zeros_like(x)
+    varience = np.zeros_like(x)
+
+    maxEI_threshold = 0.001
+    optimum_threshold = 0.001
+    smallestDistance = 0.01
+    lastOptimum = None
+
+    for k in range(iterNum):
+
+        #遍历响应面
+        print('正在遍历响应面...')
+        for i in range(0,x.shape[0]):
+            for j in range(0,x.shape[1]):
+                a=[x[i, j], y[i, j]]
+                preValue[i,j],varience[i,j]=kriging.transform(np.array(a))
+                EI_Value[i,j] = kriging.EI(a)
+
+        path1 = root_path+'/Kriging_Predicte_Model_%d.txt'%k
+        writeFile([x,y,preValue],[samples,value],path1)
+        path2 = root_path+'/Kriging_Varience_Model_%d.txt'%k
+        writeFile([x,y,varience],[samples,value],path2)
+        path3 = root_path+'/Kriging_EI_Model_%d.txt'%k
+        writeFile([x,y,EI_Value],[samples,value],path3)
+        print('\n第%d次加点'%(k+1))
+
+
+        #每轮加点为期望最大值，方差最大值，EI函数最大值
+        nextSample = kriging.optimumLocation
+
+        print('搜索EI函数最优值......')
+        ade = ADE.ADE(min,max,100,0.5,kriging.EI,False)
+        opt_ind = ade.evolution(10000,0.8)
+        nextSample = np.vstack((nextSample,opt_ind.x))
+        maxEI = kriging.EI(opt_ind.x)
+
+        print('搜索方差最大值......')
+        ade = ADE.ADE(min,max,100,0.5,kriging.get_S,False)
+        opt_ind = ade.evolution(10000,0.8)
+        nextSample = np.vstack((nextSample,opt_ind.x))
+
+        #如果加点过于逼近，只选择一个点
+        nextSample = filterSamples(nextSample,samples,smallestDistance)
+
+        #判定终止条件
+        if k == 0:
+            lastOptimum = kriging.optimum
+        else:
+            # 当MaxEI小于EI门限值说明全局已经没有提升可能性
+            if maxEI < maxEI_threshold:
+                print('EI全局最优值小于%.5f,计算终止'%maxEI_threshold)
+                break
+            else:
+                print('EI全局最优值%.5f'%maxEI)
+
+            # 当全局最优值两轮变化小于最优值门限
+            if abs(lastOptimum-kriging.optimum) < optimum_threshold:
+                print('kriging模型全局最优值的提升小于%.5f，计算终止'%optimum_threshold)
+                break
+            else:
+                print('kriging模型全局最优值的提升%.5f'%(abs(lastOptimum-kriging.optimum)))
+                lastOptimum = kriging.optimum
+            
+            # 当加点数目为0，说明新加点与原有点的距离过近
+            if nextSample.shape[0] == 0:
+                print('新加点的数目为0 ，计算终止')
+                break
+            else:
+                print('本轮加点数目%d'%nextSample.shape[0])
+
+        # 计算新加点，重新训练kriging模型
+        nextSampleNum = nextSample.shape[0]
+        nextValue = np.zeros(nextSampleNum)
+        for i in range(nextSampleNum):
+            nextValue[i] = func(nextSample[i,:])
+
+        samples = np.vstack([samples,nextSample])
+        value = np.append(value,nextValue)
+        kriging.fit(samples, value, min, max,theta)
+        kriging.global_optimum(True)
+
+
+
+    print('全局最优值:',kriging.optimum)
+    print('全局最优值坐标:',kriging.optimumLocation)
+
+def test_Kriging_EI_1():
+    '''单独取一批样本训练，不加点'''
+
+    #数据存储文件夹
+    root_path = './Data/Kriging_EI加点模型测试1'
+    import os 
+    if not os.path.exists(root_path):
+        os.makedirs(root_path) 
+    
+    # Brain函数
+    func = func_leak
+    min = np.array([-3, -3])
+    max = np.array([3, 3])
+
+    x, y = np.mgrid[min[0]:max[0]:100j, min[1]:max[1]:100j]
+
+
+    #生成样本点
+    samples = np.loadtxt(root_path+'/X.txt',delimiter=',')
+    sampleNum = samples.shape[0]
+
+    value=np.zeros(sampleNum)
+    for i in range(0,sampleNum):
+        a = [samples[i, 0], samples[i, 1]]
+        value[i]=func(a)
+    
+    #建立响应面
+    kriging = Kriging()
+    theta = [14.2320304,40.43145847]
+    kriging.fit(samples, value, min, max,theta)
+    # theta = kriging.optimize(1000,root_path+'/kriging_optimize_theta.txt')
+    kriging.global_optimum(True)
+
+    preValue = np.zeros_like(x)
+    EI_Value = np.zeros_like(x)
+    varience = np.zeros_like(x)
+
+    #遍历响应面
+    print('正在遍历响应面...')
+    for i in range(0,x.shape[0]):
+        for j in range(0,x.shape[1]):
+            a=[x[i, j], y[i, j]]
+            preValue[i,j],varience[i,j]=kriging.transform(np.array(a))
+            EI_Value[i,j] = kriging.EI(a)   
+
+    path1 = root_path+'/A_Kriging_Predicte_Model.txt'
+    writeFile([x,y,preValue],[samples,value],path1)
+    path2 = root_path+'/A_Kriging_Varience_Model.txt'
+    writeFile([x,y,varience],[samples,value],path2)
+    path3 = root_path+'/A_Kriging_EI_Model.txt'
+    writeFile([x,y,EI_Value],[samples,value],path3)
+
+
+    # ade = ADE.ADE(min,max,100,0.5,kriging.EI,False)
+    # opt_ind = ade.evolution(10000,0.8)
+    # nextSample = opt_ind.x
+    # samples = np.vstack([samples,nextSample])
+    # value = np.append(value,func(nextSample))
 
 if __name__=="__main__":
-    test_Kriging_GEI_Edition1()
+    test_Kriging_EI()

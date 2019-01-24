@@ -104,6 +104,8 @@ class ADE(object):
         #Pm是变异率，eta是分布指数，这两个参数是多项式变异环节使用的参数
         self.Pm=1/(len(min))
         self.eta=20
+        # 显示计算结果的形式，1表示显示每代的结果，2显示最后一代，3不显示
+        self.showOutcome = 2
 
     def aberrance(self):
         """变异"""
@@ -226,8 +228,12 @@ class ADE(object):
             self.exchange()
             self.select()
             ratio=self.getProportion()
-            print('进化代数{0}，最优值{1}，最优点{2}，最优值占比{3}'.format(gen,self.Inds[0].y,self.Inds[0].x,ratio))
+            if self.showOutcome == 1:
+                print('进化代数{0}，最优值{1}，最优点{2}，最优值占比{3}'.format(gen,self.Inds[0].y,self.Inds[0].x,ratio))
             gen+=1
+
+        if self.showOutcome == 2:
+            print('进化代数{0}，最优值{1}，最优点{2}，最优值占比{3}'.format(gen,self.Inds[0].y,self.Inds[0].x,ratio))            
         return self.Inds[0]
 
     def saveArg(self,path=None):
@@ -283,10 +289,10 @@ class ADE(object):
         return self.evolution(maxGen,maxProportion)
         
 if __name__=='__main__':
-    # def func(X):
-    #     x=X[0]
-    #     y=X[1]
-    #     return 3*(1-x)**2*np.exp(-(x**2)-(y+1)**2)-10*(x/5-x**3-y**5)*np.exp(-x**2-y**2)-1/3*np.exp(-(x+1)**2-y**2)
+    def func(X):
+        x=X[0]
+        y=X[1]
+        return 3*(1-x)**2*np.exp(-(x**2)-(y+1)**2)-10*(x/5-x**3-y**5)*np.exp(-x**2-y**2)-1/3*np.exp(-(x+1)**2-y**2)
 
     # Brain函数
     # def func(x):
@@ -296,15 +302,16 @@ if __name__=='__main__':
     #     y+=10*(1-1/(8*pi))*np.cos(x[0])+10
     #     return y      
 
-    def func(x):
-        y = (1.5-x[0]*(1-x[1]))**2+(2.25-x[0]*(1-x[1]**2))**2+(2.625-x[0]*(1-x[1]**3))**2 
-        return y
+    # def func(x):
+    #     y = (1.5-x[0]*(1-x[1]))**2+(2.25-x[0]*(1-x[1]**2))**2+(2.625-x[0]*(1-x[1]**3))**2 
+    #     return y
+
     min=np.array([-3,-3])
     max=np.array([3,3])
     test=ADE(min,max,100,0.5,func,True)
-    ind=test.evolution(maxGen=50)
-    test.saveArg('./Data/ADE.txt')
-    ind = test.retrain('./Data/ADE.txt',maxGen=500)
+    ind=test.evolution(maxGen=500)
+    # test.saveArg('./Data/ADE.txt')
+    # ind = test.retrain('./Data/ADE.txt',maxGen=500)
 
 
 

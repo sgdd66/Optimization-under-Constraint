@@ -451,12 +451,12 @@ def showKrigingData(path):
     graph = mlab.imshow(graphData[0],graphData[1],graphData[2])
     # mlab.surf(x,y,s)
 
- 
-    x = pointData[0][:,0]
-    y = pointData[0][:,1]
-    z = np.zeros_like(x)
+    if len(pointData)==2:
+        x = pointData[0][:,0]
+        y = pointData[0][:,1]
+        z = np.zeros_like(x)
 
-    mlab.points3d(x,y,z,scale_factor=0.25)
+        mlab.points3d(x,y,z,scale_factor=0.25)
 
     # 点的大小和颜色随顺序变化
     # x = pointData[0][:,0]
@@ -476,7 +476,8 @@ def showKrigingData(path):
     # mlab.show()
 
 
-def test():
+def test1():
+    '''G8函数显示'''
     # f = lambda x,y:-(np.sin(2*np.pi*x)**3*np.sin(2*np.pi*y))/(x**3*(x+y))
     f = lambda x:-(np.sin(2*np.pi*x[0])**3*np.sin(2*np.pi*x[1]))/(x[0]**3*(x[0]+x[1]))
     g1 = lambda x:x[0]**2-x[1]+1
@@ -501,19 +502,28 @@ def test():
     mlab.imshow(mesh_x,mesh_y,v)
     mlab.show()
 
+def test2():
+    '''遍历文件集'''
+    root_path = '/home/sgdd/Optimization-under-Constraint/Data/Kriging_EI加点模型测试1'
+    for k in range(10):
+        path = root_path+'/Kriging_Predicte_Model_%d.txt'%k
+        showKrigingData(path)
+        path = root_path+'/Kriging_Varience_Model_%d.txt'%k       
+        showKrigingData(path)
+        path = root_path+'/Kriging_EI_Model_%d.txt'%k       
+        showKrigingData(path)    
+
+def test3():
+    '''显示特定文件'''
+    # showKrigingData('./Data/Kriging_EI加点模型测试1/Kriging_True_Model.txt')      
+    showKrigingData('./Data/Kriging_EI加点模型测试1/A_Kriging_Predicte_Model.txt')  
+    showKrigingData('./Data/Kriging_EI加点模型测试1/A_Kriging_Varience_Model.txt')   
+    showKrigingData('./Data/Kriging_EI加点模型测试1/A_Kriging_EI_Model.txt')   
+  
 if __name__=='__main__':
     # test=DataVisual()
     # test.test13()
 
-    test()
+    test2()
 
-    # showKrigingData('./Data/约束优化算法测试1/Kriging_True_Model.txt')
-    # showKrigingData('./Data/约束优化算法测试1/Kriging_Predicte_Model.txt')  
-    # showKrigingData('./Data/约束优化算法测试1/Kriging_Varience_Model.txt')   
-    # root_path = '/home/sgdd/Optimization-under-Constraint/Data/约束优化算法测试1'
-    # for g in range(10):
-    #     path = root_path+'/Kriging_Predicte_Model_%d.txt'%g
-    #     showKrigingData(path)
-    #     path = root_path+'/Kriging_Varience_Model_%d.txt'%g       
-    #     showKrigingData(path)
 

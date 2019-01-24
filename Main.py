@@ -223,7 +223,8 @@ def stepB_1():
     print(pointNum)
     print('加点结束')    
 
-def 
+def shrinkScale(svm,):
+    pass
 
 def stepC_1():
     '''步骤C的第一种版本'''

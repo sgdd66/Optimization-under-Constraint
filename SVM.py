@@ -39,6 +39,9 @@ class SVM(object):
         self.path = path
         self.Kernal=kernal
 
+        # 是否展示计算过程
+        self.showCalculateProcess = False
+
     def fit(self,x,y,maxIter=100):
         '''
         训练样本数据
@@ -142,7 +145,8 @@ class SVM(object):
                         self.refresh(i1,i2)
                         j1+=1
                 else:
-                    print("所有变量均不能使第一变量{0}充分下降，更换变量".format(i1))
+                    if self.showCalculateProcess:
+                        print("所有变量均不能使第一变量{0}充分下降，更换变量".format(i1))
                     break
 
         self.saveArg()
@@ -312,7 +316,8 @@ class SVM(object):
         aim -= np.sum(self.alpha)
         self.aim.append(aim)
 
-        print([i1,i2],self.aim[-1])
+        if self.showCalculateProcess:
+            print([i1,i2],self.aim[-1])
 
     def canStop(self):
         """

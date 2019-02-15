@@ -18,7 +18,7 @@
 # ***************************************************************************
 
 
-from Kriging import Kriging,writeFile
+from Kriging import Kriging,writeFile,filterSamples
 from SVM import SVM,Kernal_Gaussian,Kernal_Polynomial
 from DOE import LatinHypercube
 import numpy as np
@@ -28,7 +28,7 @@ class TestFunction_G8(object):
     '''测试函数G8:\n
     变量维度 : 2\n
     搜寻空间 : 0.001 ≤ xi ≤ 10, i = 1, 2.\n
-    全局最小值 : x∗ = (1.2279713, 4.2453733) , f (x∗) = 0.095825.'''
+    全局最小值 : x∗ = (1.2279713, 4.2453733) , f (x∗) = -0.095825.'''
 
     def __init__(self):
         '''建立目标函数和约束'''
@@ -223,56 +223,100 @@ def stepB_1():
     print(pointNum)
     print('加点结束')    
 
-def shrinkScale(svm,):
-    pass
+def FeasibleSpace(svm, edgeRatio):
+    '''
+    提取包含支持向量机的可行域（正例）的超立方空间。\n
+    input : \n
+    svm : SVM类实例\n
+    edgeRatio : 取值0~1的浮点数，表示一个维度上，可行域向外围延展的区域与可行域在该维度投影区域的比例\n
+    output : \n
+    space_min,space_max,第一项是超立方空间的下限，第二项是超立方空间的上限\n'''
+    dim = svm.x.shape[1]
+
+    space_min = np.zeros(dim)
+    space_max = np.zeros(dim)
+    for i in range(dim):
+        space_min[i] = min(svm.x[:,i])
+        space_max[i] = max(svm.x[:,i])
+    pointNum = 100
+
+    coordinate = np.zeros((pointNum**dim,dim))
+    mark = np.zeros(pointNum**dim)    
+    for i in range(dim):
+        coordinate[:,i]+=space_min[i]
+
+    for n in range(pointNum**dim):
+        index = n
+        for m in range(dim):
+           i = index%pointNum
+           coordinate[n,m]+=(space_max[m]-space_min[m])/(pointNum-1)*i
+           index =  index//pointNum
+           if index == 0:
+               break
+        mark[n] = svm.transform(coordinate[n,:])
+
+    posIndex = np.where(mark>0)[0]
+    posCoordinate = coordinate[posIndex,:]
+
+    space_min = np.min(posCoordinate,0)
+    space_max = np.max(posCoordinate,0)
+
+    space_length = space_max - space_min
+    space_min = space_min - space_length*edgeRatio
+    space_max = space_max + space_length*edgeRatio
+
+    return space_min,space_max
 
 def stepC_1():
     '''步骤C的第一种版本'''
     #违反约束的惩罚系数
     penalty = 10000
+    root_path = './Data/约束优化算法测试1/stepC_5'
+    import os 
+    if not os.path.exists(root_path):
+        os.makedirs(root_path) 
+
 
     # 加载支持向量机
-    svm=SVM(5,kernal=Kernal_Polynomial,path = './Data/约束优化算法测试1')
-    svm.retrain('./Data/约束优化算法测试1/SVM_Argument_2019-01-15_11-41-00.txt',maxIter=1)
+    svm=SVM(5,kernal=Kernal_Polynomial,path =root_path )
+    svm.retrain(root_path+'/SVM_Argument_2019-01-15_11-41-00.txt',maxIter=1)
     
     # 提取已采样样本的坐标，值，是否违反约束的标志
-    samples = svm.x
-    value = np.zeros(samples.shape[0])
-    mark = np.zeros(samples.shape[0])
+    allSamples = svm.x
+    allValue = np.zeros(allSamples.shape[0])
+    allMark = np.zeros(allSamples.shape[0])
     testFunc = TestFunction_G8()
-    for i in range(samples.shape[0]):
-        value[i] = testFunc.aim(samples[i,:])
-        mark[i] = testFunc.isOK(samples[i,:])
+    for i in range(allSamples.shape[0]):
+        allValue[i] = testFunc.aim(allSamples[i,:])
+        allMark[i] = testFunc.isOK(allSamples[i,:])
 
     #空间缩减，保留可行域外围1.1倍区域的超立方空间，避免因点数过多引起的计算冗余
+    space_min,space_max = FeasibleSpace(svm,0.1)
+    x, y = np.mgrid[space_min[0]:space_max[0]:100j, space_min[1]:space_max[1]:100j]
 
-    scale_min = np.zeros(testFunc.dim)
-    scale_max = np.zeros(testFunc.dim)
-    for i in range(testFunc.dim):
-        down = min(samples[:,i])
-        up = max(samples[:,i])
-        scale_min[i] = down - (up-down)*0.1
-        scale_max[i] = up + (up-down)*0.1
+    #剔除搜索区域之外的样本点
 
     l = []
-    for i in range(samples.shpae[0]):
-        if samples[i,0]<scale_min[0] or samples[i,1]<scale_min[1] \
-        or samples[i,0]>scale_max[0] or samples[i,1]>scale_max[1]:
+    for i in range(allSamples.shape[0]):
+        if allSamples[i,0]<space_min[0] or allSamples[i,1]<space_min[1] \
+        or allSamples[i,0]>space_max[0] or allSamples[i,1]>space_max[1]:
             l.append(i)
-    samples = np.delete(samples,l,axis=0)
-    value = np.delete(value,l)
-    mark = np.delete(mark,l)
 
 
-
+    samples = np.delete(allSamples,l,axis=0)
+    value = np.delete(allValue,l)
+    mark = np.delete(allMark,l)
 
     #建立响应面
     kriging = Kriging()
-    theta = [32.22803739, 18.58997951] 
-    kriging.fit(samples, value, testFunc.min, testFunc.max, theta)
+    # theta = [32.22662213, 18.59361027]
+    # kriging.fit(samples, value, space_min, space_max, theta)
     
-    # print('正在优化theta参数....')
-    # theta = kriging.optimize(10000,'./Data/约束优化算法测试1/ADE_theta.txt')
+    print('正在优化theta参数....')    
+    kriging.fit(samples, value, space_min, space_max)
+    theta = kriging.optimize(10000,root_path+'/ADE_theta.txt')
+
+
 
     # 搜索kriging模型在可行域中的最优值
     def kriging_optimum(x):
@@ -280,86 +324,176 @@ def stepC_1():
         penaltyItem = penalty*min(0,svm.transform(x))
         return y-penaltyItem
 
-    ade = ADE(testFunc.min, testFunc.max, 100, 0.5, kriging_optimum,True)
     print('搜索kriging模型在约束区间的最优值.....')
+    ade = ADE(space_min, space_max, 100, 0.5, kriging_optimum,True)
     opt_ind = ade.evolution(maxGen=100000)
-
     kriging.optimumLocation = opt_ind.x
     kriging.optimum = kriging.get_Y(opt_ind.x)
 
     #目标函数是EI函数和约束罚函数的组合函数
-
     def EI_optimum(x):
         ei = kriging.EI(x)
         penaltyItem = penalty*min(0,svm.transform(x))
         return ei + penaltyItem
 
+    def Varience_optimum(x):
+        s = kriging.get_S(x)
+        penaltyItem = penalty*min(0,svm.transform(x))
+        return s + penaltyItem
 
-    iterNum = 0
-    maxIterNum = 50
+    iterNum = 100    #加点数目
+    preValue = np.zeros_like(x)
+    EI_Value = np.zeros_like(x)
+    varience = np.zeros_like(x)
+
+    maxEI_threshold = 0.0001
+    optimum_threshold = 0.0001
     smallestDistance = 0.01
-    last_sample = None
+    lastOptimum = None
 
-    while True:
-        print('第%d轮加点.........'%iterNum)
+    for k in range(iterNum):
+        #遍历响应面
+        print('正在遍历响应面...')
+        for i in range(0,x.shape[0]):
+            for j in range(0,x.shape[1]):
+                a=[x[i, j], y[i, j]]
+                if (svm.transform(a)<0):
+                    preValue[i,j] = 0
+                    varience[i,j] = 0
+                    EI_Value[i,j] = 0      
+                else:         
+                    preValue[i,j] = kriging.get_Y(a)
+                    varience[i,j] = kriging.get_S(a)
+                    EI_Value[i,j] = kriging.EI(a)
 
-        # 寻找目标函数的最优值
-        ade = ADE(testFunc.min, testFunc.max, 100, 0.5, EI_optimum,False)
+        path1 = root_path+'/Kriging_Predicte_Model_%d.txt'%k
+        writeFile([x,y,preValue],[samples,value],path1)
+        path2 = root_path+'/Kriging_Varience_Model_%d.txt'%k
+        writeFile([x,y,varience],[samples,value],path2)
+        path3 = root_path+'/Kriging_EI_Model_%d.txt'%k
+        writeFile([x,y,EI_Value],[samples,value],path3)
+
+        print('\n第%d轮加点.........'%k)
+        #每轮加点为方差最大值，EI函数最大值
+
+        # 不建议加入最优值，因为最优值与原有采样点的距离过于接近了。
+        # nextSample = kriging.optimumLocation
+
         print('搜索EI函数在约束区间的最优值.....')
+        ade = ADE(space_min, space_max, 100, 0.5, EI_optimum,False)
         opt_ind = ade.evolution(maxGen=100000)
+        nextSample = opt_ind.x
+        # nextSample = np.vstack((nextSample,opt_ind.x))
+        maxEI = EI_optimum(opt_ind.x)
+
+        print('搜索方差在约束区间的最优值.....')
+        ade = ADE(space_min,space_max,100,0.5,Varience_optimum,False)
+        opt_ind = ade.evolution(10000,0.8)
+        nextSample = np.vstack((nextSample,opt_ind.x))
+
+        #如果加点过于逼近，只选择一个点
+        nextSample = filterSamples(nextSample,samples,smallestDistance)
+
+        #判定终止条件
+        if k == 0:
+            lastOptimum = kriging.optimum
+        else:
+            # 当MaxEI小于EI门限值说明全局已经没有提升可能性
+            if maxEI < maxEI_threshold:
+                print('EI全局最优值小于%.5f,计算终止'%maxEI_threshold)
+                break
+            else:
+                print('EI全局最优值%.5f'%maxEI)
+
+            #以最优值提升为终止条件极容易导致算法过早停止
+            # # 当全局最优值两轮变化小于最优值门限
+            # if abs(lastOptimum-kriging.optimum) < optimum_threshold:
+            #     print('kriging模型全局最优值的提升小于%.5f，计算终止'%optimum_threshold)
+            #     break
+            # else:
+            #     print('kriging模型全局最优值的提升%.5f'%(abs(lastOptimum-kriging.optimum)))
+            #     lastOptimum = kriging.optimum
+            
+            # 当加点数目为0，说明新加点与原有点的距离过近
+            if nextSample.shape[0] == 0:
+                print('新加点的数目为0 ，计算终止')
+                break
+            else:
+                print('本轮加点数目%d'%nextSample.shape[0])
+
+
 
         # 检查新样本点是否满足约束，并检查SVM判定结果。
         # 如果SVM判定失误，重新训练SVM模型
         # 如果SVM判定正确，但是采样点不满足约束，惩罚系数×2。
-        new_sample = opt_ind.x
-        new_value = testFunc.aim(new_sample)
-        new_mark = testFunc.isOK(new_sample)
-        mask_svm = svm.transform(new_sample)    
-
-        samples = np.vstack((samples,new_sample))
-        value = np.append(value,new_value)
-        mark = np.append(mark,new_mark)
-
-        if (new_mark == -1 and mask_svm > 0) or (new_mark == 1 and mask_svm < 0):
-            print('新采样点的计算结果与SVM判定不符，重新训练SVM模型.......')
-            svm.fit(samples,mark,100000)
-            svm.show()
-
-        if new_mark == -1 and mask_svm<0:
-            print('新采样点位于违反约束区域，惩罚系数乘2')
-            penalty *= 2
+        nextSampleNum = nextSample.shape[0]
+        nextValue = np.zeros(nextSampleNum)
+        nextFuncMark = np.zeros(nextSampleNum)
+        nextSVMMark = np.zeros(nextSampleNum)
+        for i in range(nextSampleNum):
+            nextValue[i] = testFunc.aim(nextSample[i,:])
+            nextFuncMark[i] = testFunc.isOK(nextSample[i,:])
+            nextSVMMark[i] = svm.transform(nextSample[i,:])
 
 
 
-        # 判断终止条件
-        if iterNum > 0:
-            iterDis = np.linalg.norm(new_sample-last_sample)
-            print('与上次采样点距离：%.4f'%iterDis)      
+        samples = np.vstack((samples,nextSample))
+        value = np.append(value,nextValue)
+        mark = np.append(mark,nextFuncMark)
 
-            if iterNum > maxIterNum:
-                print('达到最大迭代次数，计算终止！！！')
+        allSamples = np.vstack((allSamples,nextSample))
+        allValue = np.append(allValue,nextValue)
+        allMark = np.append(allMark, nextFuncMark)
+
+        for i in range(nextSampleNum):
+            if (nextFuncMark[i] == -1 and nextSVMMark[i] > 0) or (nextFuncMark[i] == 1 and nextSVMMark[i] < 0):
+                print('新采样点的计算结果与SVM判定不符，重新训练SVM模型.......')
+                svm.fit(samples,mark,500000)
+                svm.show()
+
+                #不建议多次设定搜索区域，首先SVM的外围需要一定的负样本来限定超平面，同时kriging模型
+                #也需要负样本来评判目标函数在边界处的取值。反复设定搜索区域的确会减少点的数目，但约束外侧
+                #过少的采样点会使后续的预测恶化。
+
+                # #设定搜索区域
+                # space_min,space_max = FeasibleSpace(svm,0.1)
+                # x, y = np.mgrid[space_min[0]:space_max[0]:100j, space_min[1]:space_max[1]:100j]
+
+                # #剔除搜索区域之外的样本点
+
+                # l = []
+                # for i in range(allSamples.shape[0]):
+                #     if allSamples[i,0]<space_min[0] or allSamples[i,1]<space_min[1] \
+                #     or allSamples[i,0]>space_max[0] or allSamples[i,1]>space_max[1]:
+                #         l.append(i)
+
+
+                # samples = np.delete(allSamples,l,axis=0)
+                # value = np.delete(allValue,l)
+                # mark = np.delete(allMark,l)
                 break
-            if iterDis<smallestDistance:
-                print('新采样点与上轮采样点距离小于最小距离，计算终止！！！')
-                break
 
-        iterNum += 1
-        last_sample = new_sample     
+            if nextFuncMark[i] == -1 and nextSVMMark[i] < 0:
+                print('新采样点位于违反约束区域，惩罚系数乘2')
+                penalty *= 1.1
         
-        kriging.fit(samples, value, testFunc.min, testFunc.max, theta)
-        ade = ADE(testFunc.min, testFunc.max, 100, 0.5, kriging_optimum ,True)
-        print('搜索kriging模型在约束区间的最优值.....')
-        opt_ind = ade.evolution(maxGen=100000)
+        print('正在优化theta参数....')    
+        kriging.fit(samples, value, space_min, space_max)
+        theta = kriging.optimize(10000,root_path+'/ADE_theta.txt')
 
+        print('搜索kriging模型在约束区间的最优值.....')       
+        ade = ADE(space_min, space_max, 100, 0.5, kriging_optimum ,True)
+        opt_ind = ade.evolution(maxGen=100000)
         kriging.optimumLocation = opt_ind.x
         kriging.optimum = kriging.get_Y(opt_ind.x)
 
-        Data = np.hstack((samples,value,mark))
-        np.savetxt('./Data/约束优化算法测试1/优化结果.txt',Data,delimiter='\t')
+        Data = np.hstack((samples,value.reshape((-1,1)),mark.reshape((-1,1))))
+        np.savetxt(root_path+'/优化结果.txt',Data,delimiter='\t')
 
 
 
-
+    print('全局最优值:',kriging.optimum)
+    print('全局最优值坐标:',kriging.optimumLocation)
 
 
 

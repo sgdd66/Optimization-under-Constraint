@@ -456,7 +456,7 @@ def showKrigingData(path):
         y = pointData[0][:,1]
         z = np.zeros_like(x)
 
-        mlab.points3d(x,y,z,scale_factor=0.25)
+        mlab.points3d(x,y,z,scale_factor=0.03)
 
     # 点的大小和颜色随顺序变化
     # x = pointData[0][:,0]
@@ -483,6 +483,9 @@ def test1():
     g1 = lambda x:x[0]**2-x[1]+1
     g2 = lambda x:1-x[0]+(x[1]-4)**2
 
+    # min = [0.001,0.001]
+    # max = [10,10]
+
     min = [1,3]
     max = [2,5]
 
@@ -493,10 +496,11 @@ def test1():
     for i in range(mesh_x.shape[0]):
         for j in range(mesh_x.shape[1]):
             p = np.array([mesh_x[i,j],mesh_y[i,j]])
-            if g1(p)<0 and g2(p)<0:
-                v[i,j] = f(p)
-            else:
-                v[i,j] = 0
+            v[i,j] = np.log(f(p)+10000)
+            # if g1(p)<0 and g2(p)<0:
+            #     v[i,j] = f(p)
+            # else:
+            #     v[i,j] = 0
 
     mlab.figure(size=[1024,800])
     mlab.imshow(mesh_x,mesh_y,v)
@@ -504,8 +508,8 @@ def test1():
 
 def test2():
     '''遍历文件集'''
-    root_path = '/home/sgdd/Optimization-under-Constraint/Data/Kriging_EI加点模型测试1'
-    for k in range(10):
+    root_path = '/home/sgdd/Optimization-under-Constraint/Data/约束优化算法测试1/stepC_5'
+    for k in range(11):
         path = root_path+'/Kriging_Predicte_Model_%d.txt'%k
         showKrigingData(path)
         path = root_path+'/Kriging_Varience_Model_%d.txt'%k       

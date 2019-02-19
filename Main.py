@@ -621,6 +621,50 @@ class SKCO(object):
         storeData = np.hstack((samples,value,mark))
         np.savetxt(self.logPath+'/A_Samples.txt',storeData)
 
+
+    def Step_B(self,T1_list):
+        '''
+        应用SVM分割
+        '''
+        #理论分割函数
+        f = TestFunction_G8()
+        data = np.loadtxt('./Data/约束优化算法测试1/samples1.txt')
+        samples = data[:,0:2]
+        mark = data[:,3]
+
+
+        svm=SVM(5,kernal=Kernal_Polynomial,path = './Data/约束优化算法测试1')
+        svm.fit(samples,mark,maxIter=50000)
+        svm.show()
+
+        T1_list = [1,0.8,0.6,0.4]
+        pointNum = np.zeros(len(T1_list)+1)
+        pointNum[0] = samples.shape[0]
+
+        for k in range(len(T1_list)):
+            if k < 4:
+                new_x = svm.infillSample1(0.5,T1_list[k],f.min,f.max,[40,40])
+            else:
+                new_x = svm.infillSample2(0.5,T1_list[k],f.min,f.max,[40,40])            
+            num = new_x.shape[0]
+            if num == 0:
+                print('当T1设置为%.2f时，加点数目为0'%T1_list[k])
+                pointNum[k+1] = samples.shape[0]
+                continue
+            new_y = np.zeros(num)
+            for i in range(num):
+                new_y[i] = f.isOK(new_x[i,:])
+            samples = np.vstack((samples,new_x))
+            mark = np.append(mark,new_y)
+            svm.fit(samples,mark,100000)
+            svm.show()
+            pointNum[k+1] = samples.shape[0]
+
+        print('样本点数目：')
+        print(pointNum)
+        print('加点结束')    
+
+
 def SKCO_test():
     f = TestFunction_G4()
     skco = SKCO(f,'./Data/G4函数测试')

@@ -62,6 +62,53 @@ class TestFunction_G8(object):
                 return -1
         return 1
 
+class TestFunction_G4(object):
+    '''
+    测试函数G4 \n
+    变量维度 : 5\n
+    搜索空间 : l=(78,33,27,27,27),u=(102,45,45,45,45),li<xi<ui,i=1...5\n
+    全局最优值 : x* =  (78,33,29.995,45,36.7758),f(x*) = -30665.539
+    '''
+    def __init__(self):
+        '''建立目标和约束函数'''
+        self.aim = lambda x:5.3578547*x[2]**2+0.8356891*x[0]*x[4]+37.293239*x[0]-40792.141
+        self.u = lambda x:85.334407+0.0056858*x[1]*x[4]+0.0006262*x[0]*x[3]-0.0022053*x[2]*x[4]
+        self.v = lambda x:80.51249+0.0071317*x[1]*x[4]+0.0029955*x[0]*x[1]+0.0021813*x[2]**2
+        self.w = lambda x:9.300961+0.0047026*x[2]*x[4]+0.0012547*x[0]*x[2]+0.0019085*x[2]*x[3]
+
+        #约束函数，小于等于0为满足约束
+        g1 = lambda x : self.u(x)-92
+        g2 = lambda x : -self.u(x)
+        g3 = lambda x : self.v(x)-110
+        g4 = lambda x : -self.v(x)+90
+        g5 = lambda x : self.w(x)-25
+        g6 = lambda x : -self.w(x)+20
+        self.constrain = [g1,g2,g3,g4,g5,g6]
+
+        self.dim = 5
+        self.min = [78,33,27,27,27]
+        self.max = [102,45,45,45,45]
+
+        self.optimum = [78,33,29.995,45,36.7758]
+
+    def isOK(self,x):
+        '''检查样本点x是否违背约束，是返回-1，否返回1\n
+        input : \n
+        x : 样本点，一维向量\n
+        output : \n
+        mark : int，-1表示违反约束，1表示不违反约束\n'''
+        if len(x) != self.dim:
+            raise ValueError('isOK：参数维度与测试函数维度不匹配')
+        
+        for i in range(self.dim):
+            if x[i] < self.min[i] or x[i] > self.max[i]:
+                raise ValueError('isOK: 参数已超出搜索空间')
+
+        for g in self.constrain:
+            if g(x)>0:
+                return -1
+        return 1
+
 def stepA_1():
     '''
     步骤A的第一种版本，加点过程是确定数目的，并以方差为优化目标，降低全局的不确定性
@@ -495,7 +542,90 @@ def stepC_1():
     print('全局最优值:',kriging.optimum)
     print('全局最优值坐标:',kriging.optimumLocation)
 
+class SKCO(object):
+    '''基于SVM和kriging的含约束优化方法\n
+    input :\n
+    func : 求解问题实例。结构可参考本文件中的TestFunction_G4，必须包含目标函数，约束，自变量区间等数据\n
+    logPath : 日志文件存储位置，用于存储计算中产生的数据，日志'''
+    def __init__(self,func,logPath):
+        '''初始化函数'''
+        self.f = func
+        self.logPath = logPath
 
+        #采样点
+        self.samples = None
+        self.value = None
+        self.mark = None
+
+    def Step_A(self,initSampleNum = 100,auxiliarySampleNum = 10):
+        '''初步搜索设计空间\n
+        input : \n
+        initSampleNum : 整型，初始采样点数目\n
+        auxiliarySampleNum : 整型，附加采样点数目\n'''
+
+        #生成采样点
+        # lh=LatinHypercube(self.f.dim,initSampleNum,self.f.min,self.f.max)
+        # samples=lh.realSamples
+        # np.savetxt(self.logPath+'/InitSamples.txt',samples,delimiter=',')
+
+        samples = np.loadtxt(self.logPath+'/InitSamples.txt',delimiter=',')
+
+        value=np.zeros(initSampleNum)
+        for i in range(initSampleNum):
+            value[i]=self.f.aim(samples[i,:])
+        
+        #建立响应面
+        kriging = Kriging()
+        kriging.fit(samples, value, self.f.min, self.f.max)
+        
+        print('正在优化theta参数...')
+        # theta = kriging.optimize(10000,self.logPath+'/theta优化种群数据.txt')
+        theta = [0.04594392,0.001,0.48417354,0.001,0.02740766]
+
+        for k in range(auxiliarySampleNum):
+            print('第%d次加点...'%(k+1))
+            nextSample = kriging.nextPoint_Varience()
+            samples = np.vstack([samples,nextSample])
+            value = np.append(value,self.f.aim(nextSample))
+            kriging.fit(samples, value, self.f.min, self.f.max, theta)
+            # kriging.optimize(100)
+
+        #检测样本点中是否有可行解，如果没有继续加点
+        mark = np.zeros(samples.shape[0])
+        for i in range(samples.shape[0]):
+            mark[i] = self.f.isOK(samples[i,:])
+        
+        if np.sum(mark==1)>0:
+            value = value.reshape((-1,1))
+            mark = mark.reshape((-1,1))
+            storeData = np.hstack((samples,value,mark))
+            np.savetxt(self.logPath+'/A_Samples.txt',storeData)
+            return
+        else:
+            print('在所有样本中未能发现可行域，继续加点...')
+
+        
+        i = 0
+        while mark[-1]==-1:
+            i += 1
+            print('第%d次加点...'%(auxiliarySampleNum+i))
+            nextSample = kriging.nextPoint_Varience()
+            samples = np.vstack([samples,nextSample])
+            value = np.append(value,self.f.aim(nextSample))
+            mark = np.append(mark,self.f.isOK(nextSample))
+            kriging.fit(samples, value, self.f.min, self.f.max, theta)
+            # kriging.optimize(100)
+
+        value = value.reshape((-1,1))
+        mark = mark.reshape((-1,1))
+        storeData = np.hstack((samples,value,mark))
+        np.savetxt(self.logPath+'/A_Samples.txt',storeData)
+
+def SKCO_test():
+    f = TestFunction_G4()
+    skco = SKCO(f,'./Data/G4函数测试')
+    skco.Step_A(60,30)
 
 if __name__=='__main__':
-    stepC_1()
+    SKCO_test()
+

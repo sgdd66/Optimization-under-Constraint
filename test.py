@@ -433,9 +433,177 @@ def test24():
     print(np.linalg.norm(a-b))
     print(-0.09313078+0.095825)
     
+def test25():
+    '''测试G4函数'''
+    from Main import TestFunction_G4
+
+    f = TestFunction_G4()
+
+    pointNum = 1
+    for i in range(f.dim):
+        pointNum *= f.max[i]-f.min[i]+1
+    
+    value = np.zeros(pointNum)
+    mark = np.zeros(pointNum)
+    for i in range(pointNum):
+        point = f.min.copy()
+        index = i
+        for j in range(f.dim):
+            point[j] += index%(f.max[j]-f.min[j]+1)
+            index = index // (f.max[j]-f.min[j]+1)
+            if index == 0:
+                break
+        value[i] = f.aim(point)
+        mark[i] = f.isOK(point)
+
+    value = np.reshape(value,(-1,1))
+    mark = np.reshape(mark,(-1,1))
+    data = np.hstack((value,mark))
+    np.savetxt('./Data/G4函数测试/data.txt',data)  
+
+    posNum = np.sum(mark==1)
+    negNum = np.sum(mark == -1)  
+    print(posNum,negNum)
+
+def test26():
+    '''检查连通域'''
+    from Main import TestFunction_G4
+
+    f = TestFunction_G4()    
+    weight = np.array(f.max)-np.array(f.min)+1
+    
+    data = np.loadtxt('./Data/G4函数测试/data.txt')
+    pos_num = np.sum(data==1)
+    neg_num = np.sum(data==-1)
+    total_num = data.shape[0]
+    print('positive point num:',pos_num)
+    print('positive point ratio:',pos_num/total_num)
+
+    print('negative point num:',neg_num)
+    print('negative point ratio:',neg_num/total_num)  
+
+    print(neg_num+pos_num,total_num)
+
+    scaleIndex = 2
+
+    num = data.shape[0]
+    for i in range(num):
+        if data[i,1] == 1:
+            ModifyNeighbour(i,scaleIndex,weight,data)
+            scaleIndex += 1
+
+    np.savetxt('./Data/G4函数测试/data1.txt',data)
+    mark = data[:,1]
+    biggestIndex = np.max(mark)
+    for i in range(2,int(biggestIndex)+1):
+        print(i,':',np.sum(mark==i))
+
+
+    # data = np.array([[0,0,0,0],[0,1,1,0],[0,1,1,0],[0,0,0,1]])
+    # data = data.reshape((-1,1))
+    # mark = np.zeros_like(data)+1
+    # mark[np.where(data==0)] = -1
+    # data = np.hstack((data,mark))
+    
+    # num = data.shape[0]
+    # scaleIndex = 2
+    # for i in range(num):
+    #     if data[i,1] == 1:
+    #         ModifyNeighbour(i,scaleIndex,[4,4],data)
+    #         scaleIndex += 1
+        
+    # print(data)
+
+def ModifyNeighbour(index,mark,weight,data):
+    '''以点index为起始点，将其所在的连通域内所有点标记为mark\n
+    index : 起始点索引\n
+    mark : 标记符号\n
+    weight : 各维度划分数目，例如[2,3]表示第一维有2个划分，第二维有三个划分，共产生6个采样点\n
+    data : 数据，N维两列，N为样本数目。第一列是数据值，第二列是标记，-1表示违背约束，1表示满足约束，2,3,4...是相应的连通域标记\n
+    '''
+    feature = data[index,1]
+    data[index,1] = mark
+    dim = len(weight)
+
+    import queue
+    q = queue.Queue()
+    q.put(index)
+
+    while not q.empty():
+
+        index = q.get()
+        pos = Index2Pos(index,weight)
+
+        for i in range(dim):
+            if pos[i] != 0:
+                neighbour = pos.copy()
+                neighbour[i] -= 1
+                neighbour = Pos2Index(neighbour,weight)
+                if data[neighbour,1]==feature:
+                    q.put(neighbour)
+                    data[neighbour,1] = mark
+            if pos[i] != weight[i]-1:
+                neighbour = pos.copy()
+                neighbour[i] += 1
+                neighbour = Pos2Index(neighbour,weight)
+                if data[neighbour,1]==feature:
+                    q.put(neighbour)
+                    data[neighbour,1] = mark                               
+
+def Pos2Index(pos,weight):
+    '''将坐标位置转换为索引号\n
+    input :\n
+    pos : 一维向量，坐标\n
+    weight : 维度权重\n
+
+    output :\n
+    index : 索引号'''
+
+    index = 0 
+    dim = len(pos)
+    for i in range(dim):
+        value = 1
+        for j in range(i):
+            value *= weight[j]
+        index += value*pos[i]
+    
+    return index
+
+def Index2Pos(index,weight):
+    '''将索引号转换为坐标位置\n
+    input :\n
+    index : 索引号\n
+    weight : 维度权重\n
+
+    output :\n
+    pos : 一维向量，坐标'''
+
+    pos = np.zeros_like(weight)
+    dim = len(weight)
+
+    for i in range(dim):
+        pos[i]=index%weight[i]
+        index = index//weight[i]
+        if index == 0:
+            break
+    
+    return pos
+
+
+def test27():
+    '''Python的copy机制'''
+    l = [1,[3,4]]
+    l1 = l
+    l2 = l.copy()
+    l1[0] = 0
+    print(l1,l)
+    l2[0] = 4
+    print(l2,l)
+    l2[1] = 0 
+    print(l2,l)
 
 if __name__=='__main__':
-    test24()
+    test26()
 
 
 

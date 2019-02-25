@@ -337,7 +337,11 @@ class Kriging(object):
             return 0
         
         ei = (self.optimum-y-xi)*norm.cdf(u)+s*norm.pdf(u)
-        return ei
+
+        if ei == 0:
+            return self.optimum-y
+        else:
+            return ei
 
     def nextPoint_GEI(self,g):
         '''

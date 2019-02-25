@@ -439,6 +439,23 @@ def test25():
 
     f = TestFunction_G4()
 
+    x = np.array([78,33,29.996,45,36.7758])
+    y = np.array([78,33,30.04292047,45,36.65603025])
+    z = np.array([78,33,29.99790876,45,36.76916756])
+    print(f.isOK(x))
+    print(f.aim(x))
+    print(f.isOK(y))
+    print(f.aim(y))    
+    print(f.isOK(z))
+    print(f.aim(z))    
+
+
+    func = lambda x : f.aim(x)-100000*np.min([f.isOK(x),0])
+    from ADE import ADE
+    ade = ADE(f.min, f.max, 100, 0.5, func,True)
+    opt_ind = ade.evolution(maxGen=100000)
+    print(opt_ind.x)
+
     pointNum = 1
     for i in range(f.dim):
         pointNum *= f.max[i]-f.min[i]+1
@@ -589,7 +606,6 @@ def Index2Pos(index,weight):
     
     return pos
 
-
 def test27():
     '''Python的copy机制'''
     l = [1,[3,4]]
@@ -602,8 +618,146 @@ def test27():
     l2[1] = 0 
     print(l2,l)
 
+def test28(svm=None):
+    '''比较SVM与实际分类差异'''
+    if svm is None:
+        logPath = './Data/G4函数测试2'   
+        from SVM import SVM,Kernal_Gaussian,Kernal_Polynomial
+        Kernal_Poly = lambda x,y:(np.dot(x,y)+1)**7
+        Kernal_Gau = lambda x,y:np.exp((-np.linalg.norm(x-y)**2)/60)
+        svm=SVM(10,kernal=Kernal_Gau,path = logPath)
+        print('训练初始支持向量机...')
+        svm.retrain(logPath+'/SVM_Step_B.txt',0)  
+
+    from Main import TestFunction_G4
+    f = TestFunction_G4()
+
+    pointNum = 1
+    dimNum = [12,6,9,9,9]
+    weight = np.zeros(f.dim)
+    for i in range(f.dim):
+        pointNum *= dimNum[i]
+        weight[i] = (f.max[i]-f.min[i])/(dimNum[i]-1)   
+
+    # points = np.zeros((pointNum,f.dim))    
+    # points_mark = np.zeros(pointNum) 
+    # for i in range(f.dim):
+    #     points[:,i] = f.min[i]
+
+    # for i in range(pointNum):
+    #     index = i
+    #     for j in range(f.dim):
+    #         points[i,j] += index%dimNum[j]*weight[j]
+    #         index = index // dimNum[j]
+    #         if index == 0:
+    #             break       
+    #     points_mark[i] = f.isOK(points[i,:])
+    
+    # points_mark = points_mark.reshape((-1,1))
+    # data = np.hstack((points,points_mark))
+    # np.savetxt('./Data/G4函数测试1/G4函数空间.txt',data)
+
+    data = np.loadtxt('./Data/G4函数测试1/G4函数空间.txt')
+    points_mark = data[:,f.dim]
+    points = data[:,0:f.dim]
+
+
+    TP = 0
+    FN = 0
+    TN = 0
+    FP = 0    
+
+    for i in range(pointNum):
+        y_ture = points_mark[i]
+        y_pred = svm.transform(points[i,:])
+        if y_ture>0 and y_pred>0:
+            TP += 1
+        elif y_ture>0 and y_pred<0:
+            FN += 1
+        elif y_ture<0 and y_pred>0:
+            FP += 1
+        elif y_ture<0 and y_pred<0: 
+            TN += 1           
+
+    E = (FP + FN)/(pointNum)
+    acc = 1-E
+    if TP == 0:
+        P = 0
+        R = 0
+        F1 = 0
+    else:
+        P = TP/(TP+FP) 
+        R = TP/(TP+FN)
+        F1 = 2*P*R/(P+R)
+    print('........................')
+    print('样本点总数目:%d'%pointNum)
+    print('正例数目:%d'%int(TP+FN))
+    print('反例数目:%d'%int(TN+FP))
+    print('真正例（将正例判定为正例）:%d'%TP)
+    print('假正例（将反例判定为正例）:%d'%FP)
+    print('真反例（将反例判定为反例）:%d'%TN)
+    print('假反例（将正例判定为反例）:%d'%FN)
+    print('错误率:%.4f'%E)
+    print('精度:%.4f'%acc)
+    print('查准率:%.4f'%P)
+    print('查全率:%.4f'%R)
+    print('F1:%.4f'%F1)
+
+    x = np.array([78,33,29.996,45,36.7758])
+    print('样本值：',x)
+    print('目标函数:%.6f'%f.aim(x))
+    print('约束:%d'%f.isOK(x))
+    print('SVM判定:%.4f'%svm.transform(x))
+    x = np.array([78,33,30.04292047,45,36.65603025])
+    print('样本值：',x)
+    print('目标函数:%.6f'%f.aim(x))
+    print('约束:%d'%f.isOK(x))
+    print('SVM判定:%.4f'%svm.transform(x))
+    x = np.array([78,33,29.99790876,45,36.76916756])
+    print('样本值：',x)
+    print('目标函数:%.6f'%f.aim(x))
+    print('约束:%d'%f.isOK(x))
+    print('SVM判定:%.4f'%svm.transform(x))  
+
+def test29():
+    '''读取迭代次数对精度的影响中的数据'''
+    import re
+    path = './Data/G4函数测试1/迭代次数对SVM的影响and多项式p=7'
+    # path = './Data/G4函数测试1/迭代次数对SVM的影响and多项式p=9.txt'
+    with open(path,'r') as file:
+        texts = file.readlines()
+        pos = 0
+        data = None
+        while pos<len(texts):
+            if re.search(r'迭代次数：(\d+)',texts[pos]):
+                row = np.zeros(5)
+                row[0] = float(re.search(r'迭代次数：(\d+)',texts[pos]).group(1))
+                row[1] = float(re.search(r'精度:(.*)',texts[pos+9]).group(1))
+                row[2] = float(re.search(r'查准率:(.*)',texts[pos+10]).group(1))
+                row[3] = float(re.search(r'查全率:(.*)',texts[pos+11]).group(1))
+                row[4] = float(re.search(r'F1:(.*)',texts[pos+12]).group(1))      
+                if data is None:
+                    data = row          
+                else:
+                    data = np.vstack((data,row))
+                pos = pos+13
+            else:
+                pos += 1
+        np.savetxt('./Data/G4函数测试1/迭代次数对精度的影响数据p=7.txt',data)
+        plt.plot(np.log10(data[:,0]),data[:,1],'r')
+        plt.plot(np.log10(data[:,0]),data[:,2],'b')
+        plt.plot(np.log10(data[:,0]),data[:,3],'g')
+        plt.plot(np.log10(data[:,0]),data[:,4],'y')
+        plt.legend(['acc','P','R','F1'])
+        plt.savefig('./Data/G4函数测试1/迭代次数对SVM的影响and多项式p=7.png')        
+        plt.show()
+
+        
+def test30():
+    print(len(None))
+    print(len(np.array([[2,3],[3,4]])))
 if __name__=='__main__':
-    test26()
+    test28()
 
 
 

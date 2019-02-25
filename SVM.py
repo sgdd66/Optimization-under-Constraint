@@ -27,13 +27,14 @@ class SVM(object):
 
     输入：\n
     kernal ： 核函数，如果不输入默认为欧式空间内积计算方法\n
-    C ： 误分类惩罚因子
-    path : 训练日志输出目录
+    C ： 误分类惩罚因子\n
+    path : 训练日志输出目录\n
+    fileName : 日志文件名，若为空以当前时间为文件名\n
 
     输出：\n
     无返回
     """
-    def __init__(self,C,kernal,path):
+    def __init__(self,C,kernal,path,fileName=None):
 
         self.C=C
         self.path = path
@@ -41,14 +42,18 @@ class SVM(object):
 
         # 是否展示计算过程
         self.showCalculateProcess = False
+        self.fileName = fileName
+        self.acc = 0
 
-    def fit(self,x,y,maxIter=100):
+    def fit(self,x,y,maxIter=100,maxAcc = 1):
         '''
         训练样本数据
 
         输入：\n
         x : 二维矩阵，一个样本占据一行\n
         y : 一维向量，只有-1和+1两种值，维度与x的行数相同，代表每个样本的分类结果\n
+        maxIter : 最大迭代次数\n
+        maxAcc : 最大精度。如果训练模型对训练样本的分类精度高于maxAcc，训练停止\n
 
         输出：
         不返回
@@ -69,6 +74,7 @@ class SVM(object):
         self.b=0
         self.x=x
         self.y=y
+        self.acc = 0
         self.alpha = np.zeros(self.sampleSum)
         self.E=np.zeros(self.sampleSum)
         self.kkt=np.zeros((self.sampleSum))
@@ -76,12 +82,15 @@ class SVM(object):
             self.E[i]=self.g(i)-self.y[i]
         
         self.maxIter = maxIter
+        self.maxAcc = maxAcc
         #观测变量，存储每一轮迭代目标函数的值
         self.aim=[]
         #观测变量，存储每一迭代选择的变量索引
         self.variable=[]
         #使用SMO算法求解
         self.SMO()
+        #存储参数
+        self.saveArg()
 
     def transform(self,x):
         '''
@@ -149,14 +158,15 @@ class SVM(object):
                         print("所有变量均不能使第一变量{0}充分下降，更换变量".format(i1))
                     break
 
-        self.saveArg()
-
     def saveArg(self):
         '''存储计算需要的内部参数，方便训练与模型恢复'''
         #获取当前时间作为文件名
-        import time
-        timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
-        path = self.path+'/SVM_Argument_{0}.txt'.format(timemark)
+        if self.fileName is None:
+            import time
+            timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+            path = self.path+'/SVM_Argument_{0}.txt'.format(timemark)
+        else:
+            path = self.path+'/'+self.fileName
         with open(path,'w') as file:
             file.write('C:%.18e\n'%self.C)
             file.write('sample sum:{0}\n'.format(self.sampleSum))
@@ -203,7 +213,7 @@ class SVM(object):
             for i in range(len(self.variable)):
                 file.write('%d,%d\n'%(self.variable[i][0],self.variable[i][1]))
 
-    def retrain(self,path,maxIter=100):
+    def retrain(self,path,maxIter=100,maxAcc = 1):
         '''读取参数文件重新训练\n
 
         input ：\n
@@ -264,7 +274,10 @@ class SVM(object):
         self.variable = []
         self.aim = []
         self.maxIter = maxIter
+        self.maxAcc = maxAcc
+        self.acc = 0
         self.SMO()
+        self.saveArg()
 
     def refresh(self,i1,i2):
         '''根据i1，i2更新所有参数'''
@@ -316,6 +329,9 @@ class SVM(object):
         aim -= np.sum(self.alpha)
         self.aim.append(aim)
 
+        if len(self.aim)%500 == 0:
+            self.TestIndex()
+
         if self.showCalculateProcess:
             print([i1,i2],self.aim[-1])
 
@@ -331,7 +347,10 @@ class SVM(object):
         """
         
         if len(self.aim)>=self.maxIter:
-            print("因达到最大迭代次数，计算终止。")
+            print("因达到最大迭代次数，计算终止。迭代次数:%d"%len(self.aim))
+            return True
+        if self.acc>=self.maxAcc:
+            print('模型精度达标，计算终止。迭代次数:%d'%len(self.aim))
             return True
 
         for i in range(self.sampleSum):
@@ -684,6 +703,13 @@ class SVM(object):
         #计算样本集A与样本集B的距离
         distances = self.AssemblageDistance(samples_A,samples_B)
         L_max = np.max(distances)
+        
+        print('............支持向量机加点日志.............')
+        print('备选采样点数目:%d'%samples_A.shape[0])
+        print('支持向量数目:%d'%samples_B.shape[0])
+        print('最大距离:%.4f'%L_max)
+        print('T0 : %.4f'%T0)
+        print('T1 : %.4f'%T1)
 
         while L_max>T1:
             pos = np.where(distances==L_max)[0]
@@ -697,19 +723,22 @@ class SVM(object):
             L_max = np.max(distances)
 
         if samples_C is None:
-            print('分割超平面两侧点密度达到要求')
+            print('sample_C集合为空，分割超平面两侧点密度达到要求')
             return samples_C
+        else:
+            print('加点数目:%d'%samples_C.shape[0])
 
-        plt.scatter(samples_A[:,0],samples_A[:,1],c='r',marker='.')
-        plt.scatter(samples_B[:,0],samples_B[:,1],c='b',marker='.') 
-        plt.scatter(samples_C[:,0],samples_C[:,1],c='c',marker='.')                        
-        plt.xlim(min[0]-0.1,max[0]+0.1)
-        plt.ylim(min[1]-0.1,max[1]+0.1)
-        import time
-        timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
-        path = self.path+'/SVM_Photo_{0}.png'.format(timemark)
-        plt.savefig(path)
-        plt.show(5)
+        if len(labelNum) == 2:
+            plt.scatter(samples_A[:,0],samples_A[:,1],c='r',marker='.')
+            plt.scatter(samples_B[:,0],samples_B[:,1],c='b',marker='.') 
+            plt.scatter(samples_C[:,0],samples_C[:,1],c='c',marker='.')                        
+            plt.xlim(min[0]-0.1,max[0]+0.1)
+            plt.ylim(min[1]-0.1,max[1]+0.1)
+            import time
+            timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+            path = self.path+'/SVM_Photo_{0}.png'.format(timemark)
+            plt.savefig(path)
+            plt.show(5)
 
 
         return samples_C
@@ -816,21 +845,333 @@ class SVM(object):
             print('分割超平面两侧点密度达到要求')
             return samples_C
 
-        plt.scatter(samples_A[:,0],samples_A[:,1],c='r',marker='.')
-        plt.scatter(samples_B[:,0],samples_B[:,1],c='b',marker='.') 
-        plt.scatter(samples_C[:,0],samples_C[:,1],c='c',marker='.')                        
-        plt.xlim(min[0]-0.1,max[0]+0.1)
-        plt.ylim(min[1]-0.1,max[1]+0.1)
-        import time
-        timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
-        path = self.path+'/SVM_Photo_{0}.png'.format(timemark)
-        plt.savefig(path)
-        plt.show(5)
+        if len(labelNum) == 2:
+            plt.scatter(samples_A[:,0],samples_A[:,1],c='r',marker='.')
+            plt.scatter(samples_B[:,0],samples_B[:,1],c='b',marker='.') 
+            plt.scatter(samples_C[:,0],samples_C[:,1],c='c',marker='.')                        
+            plt.xlim(min[0]-0.1,max[0]+0.1)
+            plt.ylim(min[1]-0.1,max[1]+0.1)
+            import time
+            timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+            path = self.path+'/SVM_Photo_{0}.png'.format(timemark)
+            plt.savefig(path)
+            plt.show(5)
+        else:
+            print('............支持向量机加点日志.............')
+            print('备选采样点数目:%d'%samples_A.shape[0])
+            print('加点数目:%d'%samples_C.shape[0])
+            print('T0 : %.4f'%T0)
+            print('T1 : %.4f'%T1)
 
 
         return samples_C
 
-Kernal_Polynomial = lambda x,y:(np.dot(x,y)+1)**5
+    def infillSample3(self,T0,sampleMaximum,min,max,labelNum):
+        '''超平面边界加点算法3，该方法加入样本集C的数目来限制加点密度\n
+        in : \n
+        T0 : 控制与超平面距离的门限值，超出此距离内的候选的点将被舍弃\n
+        sampleMaximum : sample_C的最大数目，如果超过此数，加点终止\n
+        min : 加点区域的下界\n
+        max : 加点区域的上界\n
+        labelNum : 一维向量，维度与fit函数的x的shape[1]相同，表示产生初始候选集时各维度的划分数目\n
+        out : \n
+        samples_C : 二维矩阵，每一行是一个样本点。若为None，代表超平面两侧采样点密度满足要求\n
+        '''
+        #检查参数维度是否匹配
+        dim = self.x.shape[1]
+        if dim!=len(labelNum):
+            raise ValueError('infillSample:参数维度不匹配')
+        if dim!=len(min):
+            raise ValueError('infillSample:参数维度不匹配')
+        if dim!=len(max):
+            raise ValueError('infillSample:参数维度不匹配')
+
+        #生成样本集A，B，C
+        samples_A = self.infillSpace(min,max,labelNum)
+        samples_B = self.x
+        samples_C = None
+
+        #筛选样本集A，B，保留距离分割超平面距离T0之内的样本点
+        num_A = samples_A.shape[0]
+        mark_A = np.zeros(num_A)
+        dis_A = np.zeros(num_A)
+
+        for i in range(num_A):
+            dis_A[i] = self.transform(samples_A[i,:])
+            if dis_A[i] > T0:
+                mark_A[i] = 1
+            elif dis_A[i] < -T0:
+                mark_A[i] = -1
+            elif dis_A[i] < T0 and dis_A[i] > 0:
+                mark_A[i] = 0.5
+            elif dis_A[i] > -T0 and dis_A[i] < 0:
+                mark_A[i] = -0.5       
+
+        samples_A = samples_A[np.where(np.abs(mark_A)==0.5)] 
+        
+        #对于样本集B门限约束固定为1.1
+        T0_B = 1.1
+        num_B = samples_B.shape[0]
+        mark_B = np.zeros(num_B)
+        dis_B = np.zeros(num_B)
+
+        for i in range(num_B):
+            dis_B[i] = self.transform(samples_B[i,:])
+            if dis_B[i] > T0_B:
+                mark_B[i] = 1
+            elif dis_B[i] < -T0_B:
+                mark_B[i] = -1
+            elif dis_B[i] < T0_B and dis_B[i] > 0:
+                mark_B[i] = 0.5
+            elif dis_B[i] > -T0_B and dis_B[i] < 0:
+                mark_B[i] = -0.5       
+
+        samples_B = samples_B[np.where(np.abs(mark_B)==0.5)] 
+
+        if samples_B.shape[0] == 0:
+            raise ValueError('infillSample:T0设置过小，区域内没有已采样点')
+
+        #计算样本集A与样本集B的距离
+        distances = self.AssemblageDistance(samples_A,samples_B)
+        L_max = np.max(distances)
+        
+        print('............支持向量机加点日志.............')
+        print('备选采样点数目:%d'%samples_A.shape[0])
+        print('样本集B采样点数目:%d'%samples_B.shape[0])
+        print('最大距离:%.4f'%L_max)
+        print('T0 : %.4f'%T0)
+
+        for i in range(sampleMaximum):
+            pos = np.where(distances==L_max)[0]
+            if samples_C is None:
+                samples_C = samples_A[pos[0],:].reshape((1,-1))
+            else:
+                samples_C = np.vstack((samples_C,samples_A[pos[0],:]))
+                if samples_C.shape[0]>sampleMaximum:
+                    break
+            samples_B = np.vstack((samples_B,samples_A[pos[0],:]))
+            samples_A = np.delete(samples_A,pos,axis=0)
+            distances = self.AssemblageDistance(samples_A,samples_B)
+            L_max = np.max(distances)
+
+        if samples_C is None:
+            print('sample_C集合为空，分割超平面两侧点密度达到要求')
+            return samples_C
+        else:
+            print('加点数目:%d'%samples_C.shape[0])
+            print('加点之后最大距离:%.4f'%L_max)
+
+        if len(labelNum) == 2:
+            plt.scatter(samples_A[:,0],samples_A[:,1],c='r',marker='.')
+            plt.scatter(samples_B[:,0],samples_B[:,1],c='b',marker='.') 
+            plt.scatter(samples_C[:,0],samples_C[:,1],c='c',marker='.')                        
+            plt.xlim(min[0]-0.1,max[0]+0.1)
+            plt.ylim(min[1]-0.1,max[1]+0.1)
+            import time
+            timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+            path = self.path+'/SVM_Photo_{0}.png'.format(timemark)
+            plt.savefig(path)
+            plt.show(5)
+
+
+        return samples_C  
+
+    def infillSample4(self,candidateNum,sampleMaximum,min,max,labelNum):
+        '''超平面边界加点算法4，选取距离超平面最近的数目为candidateNum的样本点，同时用加入样本集C的数目来限制加点密度\n
+        in : \n
+        candidateNum : Sample_A的初始样本数目\n
+        sampleMaximum : sample_C的最大数目，如果超过此数，加点终止\n
+        min : 加点区域的下界\n
+        max : 加点区域的上界\n
+        labelNum : 一维向量，维度与fit函数的x的shape[1]相同，表示产生初始候选集时各维度的划分数目\n
+        out : \n
+        samples_C : 二维矩阵，每一行是一个样本点。若为None，代表超平面两侧采样点密度满足要求\n
+        '''
+        #检查参数维度是否匹配
+        dim = self.x.shape[1]
+        if dim!=len(labelNum):
+            raise ValueError('infillSample:参数维度不匹配')
+        if dim!=len(min):
+            raise ValueError('infillSample:参数维度不匹配')
+        if dim!=len(max):
+            raise ValueError('infillSample:参数维度不匹配')
+
+        #生成样本集A，B，C
+        samples_A = self.infillSpace(min,max,labelNum)
+        samples_B = self.x
+        samples_C = None
+
+        #筛选样本集A，B，保留距离分割超平面距离T0之内的样本点
+        num_A = samples_A.shape[0]
+        if num_A < candidateNum:
+            candidateNum = num_A
+        dis_A = np.zeros(num_A)
+
+        for i in range(num_A):
+            dis_A[i] = abs(self.transform(samples_A[i,:]))
+        
+        dis_A_sorted = np.sort(dis_A)
+
+
+        samples_A = samples_A[np.where(dis_A<=dis_A_sorted[candidateNum-1])] 
+        
+        #对于样本集B门限约束固定为1.1
+        T0_B = 1.1
+        num_B = samples_B.shape[0]
+        mark_B = np.zeros(num_B)
+        dis_B = np.zeros(num_B)
+
+        for i in range(num_B):
+            dis_B[i] = self.transform(samples_B[i,:])
+            if dis_B[i] > T0_B:
+                mark_B[i] = 1
+            elif dis_B[i] < -T0_B:
+                mark_B[i] = -1
+            elif dis_B[i] < T0_B and dis_B[i] > 0:
+                mark_B[i] = 0.5
+            elif dis_B[i] > -T0_B and dis_B[i] < 0:
+                mark_B[i] = -0.5       
+
+        samples_B = samples_B[np.where(np.abs(mark_B)==0.5)] 
+
+        if samples_B.shape[0] == 0:
+            raise ValueError('infillSample:T0设置过小，区域内没有已采样点')
+
+        #计算样本集A与样本集B的距离
+        distances = self.AssemblageDistance(samples_A,samples_B)
+        L_max = np.max(distances)
+        
+        print('............支持向量机加点日志.............')
+        print('备选采样点数目:%d'%samples_A.shape[0])
+        print('样本集B采样点数目:%d'%samples_B.shape[0])
+        print('最大距离:%.4f'%L_max)
+
+        for i in range(sampleMaximum):
+            pos = np.where(distances==L_max)[0]
+            if samples_C is None:
+                samples_C = samples_A[pos[0],:].reshape((1,-1))
+            else:
+                samples_C = np.vstack((samples_C,samples_A[pos[0],:]))
+                if samples_C.shape[0]>sampleMaximum:
+                    break
+            samples_B = np.vstack((samples_B,samples_A[pos[0],:]))
+            samples_A = np.delete(samples_A,pos,axis=0)
+            distances = self.AssemblageDistance(samples_A,samples_B)
+            L_max = np.max(distances)
+
+        if samples_C is None:
+            print('sample_C集合为空，分割超平面两侧点密度达到要求')
+            return samples_C
+        else:
+            print('加点数目:%d'%samples_C.shape[0])
+            print('加点之后最大距离:%.4f'%L_max)
+
+        if len(labelNum) == 2:
+            plt.scatter(samples_A[:,0],samples_A[:,1],c='r',marker='.')
+            plt.scatter(samples_B[:,0],samples_B[:,1],c='b',marker='.') 
+            plt.scatter(samples_C[:,0],samples_C[:,1],c='c',marker='.')                        
+            plt.xlim(min[0]-0.1,max[0]+0.1)
+            plt.ylim(min[1]-0.1,max[1]+0.1)
+            import time
+            timemark = time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))
+            path = self.path+'/SVM_Photo_{0}.png'.format(timemark)
+            plt.savefig(path)
+            plt.show(5)
+
+
+        return samples_C  
+
+
+    def TestIndex(self):
+        '''计算测试指标，具体包含：精度，查准率，查全率，F1\n'''
+        x = self.x
+        y = self.y
+        y_svm = np.zeros_like(y)
+        for i in range(x.shape[0]):
+            y_svm[i] = self.transform(x[i,:])
+        TP = 0
+        FN = 0
+        TN = 0
+        FP = 0
+        for i in range(x.shape[0]):
+            if y[i]>0 and y_svm[i]>0:
+                TP += 1
+            elif y[i]>0 and y_svm[i]<0:
+                FN += 1
+            elif y[i]<0 and y_svm[i]>0:
+                FP += 1
+            elif y[i]<0 and y_svm[i]<0:
+                TN += 1
+        E = (FP + FN)/x.shape[0]
+        acc = 1-E
+        if TP == 0:
+            P = 0
+            R = 0
+            F1 = 0
+        else:
+            P = TP/(TP+FP) 
+            R = TP/(TP+FN)
+            F1 = 2*P*R/(P+R)      
+
+        self.acc = acc
+        self.P = P
+        self.R = R
+        self.F1 = F1  
+        self.TP = TP
+        self.FN = FN
+        self.TN = TN
+        self.FP = FP
+
+
+    def Report(self):
+        '''
+        将测试指标显示并写入文件
+        '''
+        self.TestIndex()
+
+        acc = self.acc
+        P = self.P
+        R = self.R 
+        F1 = self.F1
+        TP = self.TP
+        FN = self.FN
+        TN = self.TN
+        FP = self.FP
+
+        print('........................')
+        print('训练迭代次数:%d'%len(self.aim))
+        print('样本点总数目:%d'%self.x.shape[0])
+        print('正例数目:%d'%(TP+FN))
+        print('反例数目:%d'%(TN+FP))
+        print('真正例（将正例判定为正例）:%d'%TP)
+        print('假正例（将反例判定为正例）:%d'%FP)
+        print('真反例（将反例判定为反例）:%d'%TN)
+        print('假反例（将正例判定为反例）:%d'%FN)
+        print('精度:%.4f'%acc)
+        print('查准率:%.4f'%P)
+        print('查全率:%.4f'%R)
+        print('F1:%.4f'%F1)
+
+        with open(self.path+'/SVM_Report.txt','a') as file:
+            file.write('\n........................\n')
+            # file.write('高斯核函数\n')
+            file.write('多项式核函数，指数为6\n')
+            file.write('惩罚系数:%.4f\n'%self.C)
+            file.write('训练迭代次数:%d\n'%len(self.aim))
+            file.write('样本点总数目:%d'%self.x.shape[0])
+            file.write('正例数目:%d'%(TP+FN))
+            file.write('反例数目:%d'%(TN+FP))
+            file.write('真正例（将正例判定为正例）:%d\n'%TP)
+            file.write('假正例（将反例判定为正例）:%d\n'%FP)
+            file.write('真反例（将反例判定为反例）:%d\n'%TN)
+            file.write('假反例（将正例判定为反例）:%d\n'%FN)
+            file.write('精度:%.4f\n'%acc)
+            file.write('查准率:%.4f\n'%P)
+            file.write('查全率:%.4f\n'%R)
+            file.write('F1:%.4f\n'%F1)            
+
+        
+Kernal_Polynomial = lambda x,y:(np.dot(x,y)+1)**6
 #分母应该是2×delta××2，为了方便计算只用一个数
 Kernal_Gaussian = lambda x,y:np.exp((-np.linalg.norm(x-y)**2)/2)
 

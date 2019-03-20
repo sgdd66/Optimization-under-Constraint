@@ -22,6 +22,34 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+def test30():
+    x = np.array([78,33,29.996,45,36.7758])
+    from Main import TestFunction_G4
+    f = TestFunction_G4()
+    #各轮搜索最优点
+    data = np.loadtxt('./Data/G4函数测试7/局部样本点.txt')
+    points = data[:,:5]
+    mark = data[:,6]
+    dis = np.linalg.norm(points-x,axis=1)
+    dis = dis.reshape(-1,1)
+    mark = mark.reshape(-1,1)
+    data = np.hstack((dis,mark))
+    # print(data[np.where(data[:,0]<10)])
+    # print(points[np.where(data[:,0]<10)])
+    p = points[np.where(data[:,0]<10)]
+    for i in range(p.shape[0]):
+        print(f.aim(p[i,:]))
+
+    
+    x1 = [78,33,31.80947635,45,32.82840826]
+    print(f.aim(x1))
+    print(f.aim(x))
+    print((f.aim(x1)-f.aim(x))/f.aim(x))
+    # print(np.linalg.norm(x1-x))
+    # print((f.aim(x1)-f.aim(x))/f.aim(x))
+
+
+
 def test1():
     '''逐行读取数据'''
     for line in sys.stdin:
@@ -618,6 +646,10 @@ def test27():
     l2[1] = 0 
     print(l2,l)
 
+    a = np.array([2,3,4])
+    b = np.append(a,2)
+    print(b)
+
 def test28(svm=None):
     '''比较SVM与实际分类差异'''
     if svm is None:
@@ -704,20 +736,9 @@ def test28(svm=None):
     print('F1:%.4f'%F1)
 
     x = np.array([78,33,29.996,45,36.7758])
-    print('样本值：',x)
-    print('目标函数:%.6f'%f.aim(x))
-    print('约束:%d'%f.isOK(x))
+    print('实际最优值坐标：',x)
+    print('实际最优值:%.6f'%f.aim(x))
     print('SVM判定:%.4f'%svm.transform(x))
-    x = np.array([78,33,30.04292047,45,36.65603025])
-    print('样本值：',x)
-    print('目标函数:%.6f'%f.aim(x))
-    print('约束:%d'%f.isOK(x))
-    print('SVM判定:%.4f'%svm.transform(x))
-    x = np.array([78,33,29.99790876,45,36.76916756])
-    print('样本值：',x)
-    print('目标函数:%.6f'%f.aim(x))
-    print('约束:%d'%f.isOK(x))
-    print('SVM判定:%.4f'%svm.transform(x))  
 
 def test29():
     '''读取迭代次数对精度的影响中的数据'''
@@ -752,12 +773,115 @@ def test29():
         plt.savefig('./Data/G4函数测试1/迭代次数对SVM的影响and多项式p=7.png')        
         plt.show()
 
+def test31():
+    x1 = np.array([[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,50,50,50,0.5]])
+    x2 = np.array([[0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,40,40,40,0.4]])
+    x3 = np.array([[1,1,1,1,1,1,1,1,1,3,3,3,1]])
+    x4 = np.array([[1,2,1,1,1,2,1,1,1,3,3,3,1]])
+    x5 = np.array([[1,1,1,2,1,1,1,-1,1,3,3,3,1]])    
+    x = np.vstack((x1,x2,x3,x4,x5))
+    aim = lambda x:5*(np.sum(x[0:4]))-5*(np.sum(x[0:4]**2))-np.sum(x[4:])
+    print(aim(x[2]))
+
+    def aim_matrix(M):
+        sum1 = 5*np.sum(M[:,0:4],axis=1)
+        sum2 = 5*np.sum(np.power(M[:,0:4],2),axis=1)
+        sum3 = np.sum(M[:,4:],axis=1)
+        return sum1-sum2-sum3
+
+    print(aim_matrix(x))
+
+
+    g1 = lambda x:2*x[0]+2*x[1]+x[9]+x[10]-10
+    g2 = lambda x:2*x[0]+2*x[2]+x[9]+x[11]-10
+    g3 = lambda x:2*x[1]+2*x[2]+x[10]+x[11]-10
+    g4 = lambda x:-8*x[0]+x[9]
+    g5 = lambda x:-8*x[1]+x[10]
+    g6 = lambda x:-8*x[2]+x[11]
+    g7 = lambda x:-2*x[3]-x[4]+x[9]
+    g8 = lambda x:-2*x[5]-x[6]+x[10]
+    g9 = lambda x:-2*x[7]-x[8]+x[11]
+    l = [0,0,0,0,0,0,0,0,0,0,0,0,0]
+    u = [1,1,1,1,1,1,1,1,1,100,100,100,1]
+
+    constrain = [g1,g2,g3,g4,g5,g6,g7,g8,g9]
+
+    dim = 13
+
+    def isOK(x):
+
+        if len(x) != dim:
+            raise ValueError('isOK：参数维度与测试函数维度不匹配')
         
-def test30():
-    print(len(None))
-    print(len(np.array([[2,3],[3,4]])))
+        for i in range(dim):
+            if x[i] < l[i] or x[i] > u[i]:
+                raise ValueError('isOK: 参数已超出搜索空间')
+
+        for g in constrain:
+            if g(x)>0:
+                return -1
+        return 1
+
+    for i in range(x.shape[0]):
+        try:
+            print(isOK(x[i]))
+        except ValueError:
+            print('error')
+
+
+    def isOK_Matrix(x):
+        mark = np.zeros(x.shape[0])+1
+
+        for i in range(dim):
+            mark[np.where(x[:,i]<l[i])] = -1
+            mark[np.where(x[:,i]>u[i])] = -1
+
+        g1 = 2*x[:,0]+2*x[:,1]+x[:,9]+x[:,10]-10
+        g2 = 2*x[:,0]+2*x[:,2]+x[:,9]+x[:,11]-10
+        g3 = 2*x[:,1]+2*x[:,2]+x[:,10]+x[:,11]-10
+        g4 = -8*x[:,0]+x[:,9]
+        g5 = -8*x[:,1]+x[:,10]
+        g6 = -8*x[:,2]+x[:,11]
+        g7 = -2*x[:,3]-x[:,4]+x[:,9]
+        g8 = -2*x[:,5]-x[:,6]+x[:,10]
+        g9 = -2*x[:,7]-x[:,8]+x[:,11]
+        mark[np.where(g1>0)] = -1
+        mark[np.where(g2>0)] = -1        
+        mark[np.where(g3>0)] = -1
+        mark[np.where(g4>0)] = -1
+        mark[np.where(g5>0)] = -1
+        mark[np.where(g6>0)] = -1
+        mark[np.where(g7>0)] = -1        
+        mark[np.where(g8>0)] = -1
+        mark[np.where(g9>0)] = -1
+            
+        return mark
+    print(isOK_Matrix(x))
+
+def test32():
+    points_mark = np.array([1,1,1,1,3,3,3])
+    svm_mark    = np.array([1,3,1,3,1,3,1])
+    points_pos = points_mark==1
+    points_neg = ~points_pos
+
+    svm_pos = svm_mark==1
+    svm_neg = ~svm_pos
+
+
+    TP = np.sum(points_pos & svm_pos)
+    FP = np.sum(svm_pos & points_neg)
+    TN = np.sum(points_neg & svm_neg)
+    FN = np.sum(svm_neg & points_pos)
+
+    print(points_mark>svm_mark)
+
+    a = np.vstack((points_mark,svm_mark))
+    print(np.sum(a==points_mark,axis=1))
+
+    print(TP,FP,TN,FN)
+
 if __name__=='__main__':
-    test28()
+    test32()
 
 
 

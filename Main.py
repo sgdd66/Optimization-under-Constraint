@@ -24,6 +24,7 @@ from DOE import LatinHypercube
 import numpy as np
 from ADE import ADE
 from test import test28
+from sklearn import svm as SVM_SKLearn
 
 class TestFunction_G8(object):
     '''测试函数G8:\n
@@ -110,6 +111,66 @@ class TestFunction_G4(object):
                 return -1
         return 1
 
+    def report(self,svm):
+        '''比较SVM与实际分类差异'''
+
+        pointNum = 1
+        dimNum = [12,6,9,9,9]
+        weight = np.zeros(f.dim)
+        for i in range(f.dim):
+            pointNum *= dimNum[i]
+            weight[i] = (f.max[i]-f.min[i])/(dimNum[i]-1)   
+
+        data = np.loadtxt('./Data/G4函数测试1/G4函数空间.txt')
+        points_mark = data[:,f.dim]
+        points = data[:,0:f.dim]
+
+        TP = 0
+        FN = 0
+        TN = 0
+        FP = 0    
+
+        for i in range(pointNum):
+            y_ture = points_mark[i]
+            y_pred = svm.transform(points[i,:])
+            if y_ture>0 and y_pred>0:
+                TP += 1
+            elif y_ture>0 and y_pred<0:
+                FN += 1
+            elif y_ture<0 and y_pred>0:
+                FP += 1
+            elif y_ture<0 and y_pred<0: 
+                TN += 1           
+
+        E = (FP + FN)/(pointNum)
+        acc = 1-E
+        if TP == 0:
+            P = 0
+            R = 0
+            F1 = 0
+        else:
+            P = TP/(TP+FP) 
+            R = TP/(TP+FN)
+            F1 = 2*P*R/(P+R)
+        print('........................')
+        print('样本点总数目:%d'%pointNum)
+        print('正例数目:%d'%int(TP+FN))
+        print('反例数目:%d'%int(TN+FP))
+        print('真正例（将正例判定为正例）:%d'%TP)
+        print('假正例（将反例判定为正例）:%d'%FP)
+        print('真反例（将反例判定为反例）:%d'%TN)
+        print('假反例（将正例判定为反例）:%d'%FN)
+        print('错误率:%.4f'%E)
+        print('精度:%.4f'%acc)
+        print('查准率:%.4f'%P)
+        print('查全率:%.4f'%R)
+        print('F1:%.4f'%F1)
+
+        x = np.array([78,33,29.996,45,36.7758])
+        print('实际最优值坐标：',x)
+        print('实际最优值:%.6f'%f.aim(x))
+        print('SVM判定:%.4f'%svm.transform(x))
+        
 def stepA_1():
     '''
     步骤A的第一种版本，加点过程是确定数目的，并以方差为优化目标，降低全局的不确定性
@@ -496,6 +557,7 @@ def stepC_1():
         allValue = np.append(allValue,nextValue)
         allMark = np.append(allMark, nextFuncMark)
 
+
         for i in range(nextSampleNum):
             if (nextFuncMark[i] == -1 and nextSVMMark[i] > 0) or (nextFuncMark[i] == 1 and nextSVMMark[i] < 0):
                 print('新采样点的计算结果与SVM判定不符，重新训练SVM模型.......')
@@ -693,20 +755,22 @@ class SKCO(object):
         # 加载支持向量机
         Kernal_Gau = lambda x,y:np.exp((-np.linalg.norm(x-y)**2)/90)
         Kernal_Poly = lambda x,y:(np.dot(x,y)+1)**9
-        svm=SVM(5,kernal=Kernal_Gau,path =self.logPath,fileName='SVM_Step_C.txt' )
+        svm=SVM(1000,kernal=Kernal_Gau,path =self.logPath,fileName='SVM_Step_C.txt' )
         
         # 提取已采样样本的坐标，值，是否违反约束的标志
         testFunc = TestFunction_G4()
 
-        data = np.loadtxt(self.logPath+'/B_Samples.txt')
+        # data = np.loadtxt(self.logPath+'/B_Samples.txt')
+        data = np.loadtxt(self.logPath+'/全部样本点.txt')        
         allSamples = data[:,0:testFunc.dim]
         allValue = data[:,testFunc.dim]
         allMark = data[:,testFunc.dim+1]     
 
         print('训练初始支持向量机...')
-        svm.fit(allSamples,allMark,30000,maxAcc=1.1)
-        test28(svm) 
-        # svm.retrain(self.logPath+'/SVM_Step_B.txt',maxIter=10 ,maxAcc=1.1)
+        # svm.fit(allSamples,allMark,30000,maxAcc=1.1)
+        # test28(svm) 
+        svm.retrain(self.logPath+'/SVM_Step_C.txt',maxIter=10 ,maxAcc=1.1)
+        
 
         # #空间缩减，保留可行域外围1.1倍区域的超立方空间，避免因点数过多引起的计算冗余
         # space_min,space_max = FeasibleSpace(svm,[12,6,9,9,9],0.1)
@@ -749,12 +813,13 @@ class SKCO(object):
 
         #建立响应面
         kriging = Kriging()
-        # theta = [0.234505671,0.001,1.84605460,0.001,0.145689767]
-        # kriging.fit(samples, value, space_min, space_max, theta)
+
+        theta = [0.279323019, 0.001, 3.15045620,  0.001, 0.179147511]
+        kriging.fit(samples, value, space_min, space_max, theta)
         
-        print('正在优化theta参数....')    
-        kriging.fit(samples, value, space_min, space_max)
-        theta = kriging.optimize(10000,self.logPath+'/ADE_theta.txt')
+        # print('正在优化theta参数....')    
+        # kriging.fit(samples, value, space_min, space_max)
+        # theta = kriging.optimize(10000,self.logPath+'/ADE_theta.txt')
 
         # 搜索kriging模型在可行域中的最优值
         def kriging_optimum(x):
@@ -802,10 +867,19 @@ class SKCO(object):
             nextSample = opt_ind.x
             maxEI = EI_optimum(opt_ind.x)
 
+            while maxEI < 0:
+                print('EI函数最优值求解失败,重新求解...')
+                ade = ADE(space_min, space_max, 200, 0.5, EI_optimum,False)
+                opt_ind = ade.evolution(maxGen=5000)
+                nextSample = opt_ind.x
+                maxEI = EI_optimum(opt_ind.x)                
+            print('EI函数最优值实际约束判定:%d'%testFunc.isOK(opt_ind.x))
+
             print('搜索方差在约束区间的最优值.....')
             ade = ADE(space_min,space_max,200,0.5,Varience_optimum,False)
             opt_ind = ade.evolution(5000,0.8)
             nextSample = np.vstack((nextSample,opt_ind.x))
+            print('方差最优值实际约束判定:%d'%testFunc.isOK(opt_ind.x))
 
             #如果加点过于逼近，只选择一个点
             nextSample = filterSamples(nextSample,samples,smallestDistance)
@@ -846,18 +920,23 @@ class SKCO(object):
             allValue = np.append(allValue,nextValue)
             allMark = np.append(allMark, nextFuncMark)
 
-            for i in range(nextSampleNum):
-                if (nextFuncMark[i] == -1 and nextSVMMark[i] > 0) or (nextFuncMark[i] == 1 and nextSVMMark[i] < 0):
-                    print('新采样点的计算结果与SVM判定不符，重新训练SVM模型.......')
-                    svm.fit(samples,mark,30000,maxAcc=1.1)
-                    test28(svm)
-                    break
+            # 如果只在发现SVM判断错误的前提下重训练，一般只会提高查准率，而不利于查全率的提升。
+            # 如果发现最优点满足约束，也应重训练，以增大附近可行区域
+            print('训练支持向量机...')
+            svm.fit(samples,mark,30000,maxAcc=1.1)
+            test28(svm)            
 
-                if nextFuncMark[i] == -1 and nextSVMMark[i] < 0:
-                    print('新采样点位于违反约束区域，惩罚系数乘2')
-                    penalty *= 1.1
-            
-            print('正在优化theta参数....')    
+            # for i in range(nextSampleNum):
+            #     if (nextFuncMark[i] == -1 and nextSVMMark[i] > 0) or (nextFuncMark[i] == 1 and nextSVMMark[i] < 0):
+            #         print('新采样点的计算结果与SVM判定不符，重新训练SVM模型.......')
+            #         svm.fit(samples,mark,30000,maxAcc=1.1)
+            #         test28(svm)
+            #         break
+
+            #     if nextFuncMark[i] == -1 and nextSVMMark[i] < 0:
+            #         print('新采样点位于违反约束区域，惩罚系数乘2')
+            #         penalty *= 1.1
+
             kriging.fit(samples, value, space_min, space_max,theta)
 
             print('搜索kriging模型在约束区间的最优值.....')       
@@ -869,8 +948,37 @@ class SKCO(object):
             Data = np.hstack((allSamples,allValue.reshape((-1,1)),allMark.reshape((-1,1))))
             np.savetxt(self.logPath+'/全部样本点.txt',Data,delimiter='\t')
 
+        while testFunc.isOK(kriging.optimumLocation)==-1:
+
+            nextSample = kriging.optimumLocation
+            nextValue = testFunc.aim(nextSample)
+            nextFuncMark = testFunc.isOK(nextSample)
+
+            samples = np.vstack((samples,nextSample))
+            value = np.append(value,nextValue)
+            mark = np.append(mark,nextFuncMark)
+
+            allSamples = np.vstack((allSamples,nextSample))
+            allValue = np.append(allValue,nextValue)
+            allMark = np.append(allMark, nextFuncMark)
+
+            print('区间错误,训练支持向量机...')
+            svm.fit(samples,mark,30000,maxAcc=1.1)
+            test28(svm)       
+
+            print('搜索kriging模型在约束区间的最优值.....')  
+            kriging.fit(samples, value, space_min, space_max,theta)     
+            ade = ADE(space_min, space_max, 200, 0.5, kriging_optimum ,True)
+            opt_ind = ade.evolution(maxGen=5000)
+            kriging.optimumLocation = opt_ind.x
+            kriging.optimum = kriging.get_Y(opt_ind.x)   
+
+            Data = np.hstack((allSamples,allValue.reshape((-1,1)),allMark.reshape((-1,1))))
+            np.savetxt(self.logPath+'/全部样本点.txt',Data,delimiter='\t')     
+
         print('全局最优值:',kriging.optimum)
         print('全局最优值坐标:',kriging.optimumLocation)        
+
 
     def Test_SVM_Kernal(self):
         #理论分割函数
@@ -1082,16 +1190,18 @@ class SKCO(object):
             print('查全率:%.4f'%R)
             print('F1:%.4f'%F1)      
 
+    def Test_SVM_skLearn(self):
+        f = self.f
+
 
 def SKCO_test():
     f = TestFunction_G4()
-    skco = SKCO(f,'./Data/G4函数测试2')
+    skco = SKCO(f,'./Data/G4函数测试6')
     # skco.Step_A(51,20)
     # skco.Test_SVM_Kernal()    
     # skco.Test_SVM_IterNum()
 
-    # skco.Step_B([10000,10000],[10,10])
-
+    # skco.Step_B([10000,10000,10000,10000],[5,5,5,5])
     skco.Step_C()
 
 if __name__=='__main__':

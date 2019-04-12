@@ -22,32 +22,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def test30():
-    x = np.array([78,33,29.996,45,36.7758])
-    from Main import TestFunction_G4
-    f = TestFunction_G4()
-    #各轮搜索最优点
-    data = np.loadtxt('./Data/G4函数测试7/局部样本点.txt')
-    points = data[:,:5]
-    mark = data[:,6]
-    dis = np.linalg.norm(points-x,axis=1)
-    dis = dis.reshape(-1,1)
-    mark = mark.reshape(-1,1)
-    data = np.hstack((dis,mark))
-    # print(data[np.where(data[:,0]<10)])
-    # print(points[np.where(data[:,0]<10)])
-    p = points[np.where(data[:,0]<10)]
-    for i in range(p.shape[0]):
-        print(f.aim(p[i,:]))
-
-    
-    x1 = [78,33,31.80947635,45,32.82840826]
-    print(f.aim(x1))
-    print(f.aim(x))
-    print((f.aim(x1)-f.aim(x))/f.aim(x))
-    # print(np.linalg.norm(x1-x))
-    # print((f.aim(x1)-f.aim(x))/f.aim(x))
-
 
 
 def test1():
@@ -456,11 +430,60 @@ def test23():
     print(min(y),max(y))
 
 def test24():
-    a = np.array([1.22987807,4.24136813])
-    b = np.array([1.2279713, 4.2453733])
-    print(np.linalg.norm(a-b))
-    print(-0.09313078+0.095825)
+    '''制作解释样本点线性分布的示例图片'''
+    from DOE import PseudoMonteCarlo
+
+
+    f = lambda x:np.sin(x)
+    end = 4*np.pi
+    line_x = np.linspace(0,end,100)
+    line_y = f(line_x)
+
+    pt_x = np.arange(0,end+1,np.pi)
+    pt_y = f(pt_x)
+
+    coeff = np.polyfit(pt_x,pt_y,7)
+    polyFunc = np.poly1d(coeff)
+    fit_y = polyFunc(line_x)
     
+    
+    plt.plot(line_x,line_y)
+    plt.scatter(pt_x,pt_y)
+    plt.plot(line_x,fit_y)
+    plt.show()
+
+    pt_x = PseudoMonteCarlo(np.array([4]),1,[0.5*np.pi],[3.5*np.pi]).realSamples.reshape((-1))
+    pt_x = np.append(pt_x,[0,end])
+
+    
+    pt_y = f(pt_x)
+
+    pt_x = pt_x.reshape((-1,1))
+    pt_y = pt_y.reshape((-1,1))
+
+    from Kriging import Kriging
+
+    kriging = Kriging()
+    kriging.fit(pt_x,pt_y,min=[0],max=[end])
+    fit_y = np.zeros_like(line_y)
+    for i in range(line_x.shape[0]):
+        fit_y[i] = kriging.get_Y(np.array([line_x[i]]))
+
+
+    # def func(x,a,b,c):
+    #     return a*np.sin(x+b)+c
+    # from scipy.optimize import curve_fit
+    # popt,pcov = curve_fit(func,pt_x,pt_y)
+    # a = popt[0]
+    # b = popt[1]
+    # c = popt[2]
+    # fit_y = func(line_x,a,b,c)
+
+    plt.plot(line_x,line_y)
+    plt.scatter(pt_x,pt_y)
+    plt.plot(line_x,fit_y)
+    plt.show()
+
 def test25():
     '''测试G4函数'''
     from Main import TestFunction_G4
@@ -773,6 +796,32 @@ def test29():
         plt.savefig('./Data/G4函数测试1/迭代次数对SVM的影响and多项式p=7.png')        
         plt.show()
 
+def test30():
+    x = np.array([78,33,29.996,45,36.7758])
+    from Main import TestFunction_G4
+    f = TestFunction_G4()
+    #各轮搜索最优点
+    data = np.loadtxt('./Data/G4函数测试7/局部样本点.txt')
+    points = data[:,:5]
+    mark = data[:,6]
+    dis = np.linalg.norm(points-x,axis=1)
+    dis = dis.reshape(-1,1)
+    mark = mark.reshape(-1,1)
+    data = np.hstack((dis,mark))
+    # print(data[np.where(data[:,0]<10)])
+    # print(points[np.where(data[:,0]<10)])
+    p = points[np.where(data[:,0]<10)]
+    for i in range(p.shape[0]):
+        print(f.aim(p[i,:]))
+
+    
+    x1 = [78,33,31.80947635,45,32.82840826]
+    print(f.aim(x1))
+    print(f.aim(x))
+    print((f.aim(x1)-f.aim(x))/f.aim(x))
+    # print(np.linalg.norm(x1-x))
+    # print((f.aim(x1)-f.aim(x))/f.aim(x))
+
 def test31():
     x1 = np.array([[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,50,50,50,0.5]])
     x2 = np.array([[0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,40,40,40,0.4]])
@@ -880,8 +929,136 @@ def test32():
 
     print(TP,FP,TN,FN)
 
+def test33():
+    from Main import TestFunction_G8
+    from Kriging import writeFile
+    f = TestFunction_G8()
+    min = f.min
+    max = f.max
+
+    #遍历设计空间
+    x, y = np.mgrid[min[0]:max[0]:100j, min[1]:max[1]:100j]
+    s = np.zeros_like(x)
+    for i in range(x.shape[0]):
+        for j in range(x.shape[1]):
+            a = [x[i, j], y[i, j]]
+            s[i, j] = f.aim(a)
+            if s[i,j]>0:
+                s[i,j]=np.log10(s[i,j]+1)
+            elif s[i,j]<0:
+                s[i,j]=-np.log10(-s[i,j]+1)
+
+    path = './Data/约束优化算法测试1/G8_Function.txt'
+    writeFile([x,y,s],[],path)
+
+def test34():
+    '''
+    提取文本中的数据
+    '''
+    import re
+    reg = re.compile(r'最优值\[\[.*\]\]，最优点\[.*\]')
+    reg_float = re.compile(r'-?\d+\.\d*e?-?\d*')
+    with open('./Data/G4简化函数测试1/局部搜索日志0','r') as file:
+        data = None
+        texts = file.readlines()
+        for text in texts:
+            match = reg.search(text)
+            if match:
+                row = reg_float.findall(match.group(0))
+                for i in range(len(row)):
+                    row[i] = float(row[i])
+                if data is None:                   
+                    data = np.array(row)
+                else:
+                    row = np.array(row)                    
+                    data = np.vstack((data,row))
+
+
+    EI = data[:,0].reshape((-1,1))
+    point = data[:,1:]
+
+
+    from Main1 import TestFunction_G4
+    f = TestFunction_G4()
+    value = np.zeros(point.shape[0])
+    mark = np.zeros(point.shape[0])
+    for i in range(point.shape[0]):
+        value[i] = f.aim(point[i,:])
+        mark[i] = f.isOK(point[i,:])
+    value = value.reshape((-1,1))
+    mark = mark.reshape((-1,1))    
+
+    optimumPoint = np.array(f.optimum)
+    distance = np.linalg.norm(point-optimumPoint,axis=1)
+    distance = distance.reshape((-1,1))
+    data = np.hstack((point,value,mark,distance,EI))
+
+
+    np.savetxt('./Data/G4简化函数测试1/计算日志提取数据.txt',data,delimiter='\t')
+    print(data.shape)
+
+def test35():
+    '''
+    计算文本中的数据
+    '''
+    data = np.loadtxt('./Data/约束优化算法测试1/stepC_5/待计算数据.txt')
+    from Main import TestFunction_G8
+    f = TestFunction_G8()
+    value = np.zeros(data.shape[0])
+    mark = np.zeros(data.shape[0])
+    for i in range(data.shape[0]):
+        value[i] = f.aim(data[i,:])
+        mark[i] = f.isOK(data[i,:])
+    value = value.reshape((-1,1))
+    mark = mark.reshape((-1,1))
+    data = np.hstack((data,value,mark))
+    np.savetxt('./Data/约束优化算法测试1/stepC_5/计算数据.txt',data,delimiter='\t')
+
+def test36():
+    '''
+    绘制数据折线图
+    '''
+    data = np.loadtxt('./Data/G16函数测试/超平面移动数据.txt')
+    X = data[0,:]
+    Y1 = data[1,:]
+    Y2 = data[2,:]
+    Y3 = data[3,:]
+    Y4 = data[4,:]
+    L1, = plt.plot(X,Y1)
+    L2, = plt.plot(X,Y2)
+    L3, = plt.plot(X,Y3)
+    L4, = plt.plot(X,Y4)
+
+    # plt.ylim((0,1))
+
+    plt.legend([L1,L2,L3,L4],['Accuracy','Precision','Recall','F1'],loc='lower right')
+    plt.show()
+
+def test37():
+    '''
+    读取全部样本点数据并计算
+    '''
+    data = np.loadtxt('Data/G16函数测试/全部样本点.txt')
+    point = data[:,0:5]
+    value = data[:,5]
+    mark = data[:,6]
+
+    from Main3 import TestFunction_G16
+
+    f = TestFunction_G16()
+
+    optimumPoint = np.array(f.optimum)
+    distance = np.linalg.norm(point-optimumPoint,axis=1)
+    distance = distance.reshape((-1,1))
+    value = value.reshape((-1,1))
+    mark = mark.reshape((-1,1))    
+
+    data = np.hstack((point,value,mark,distance))
+    np.savetxt('./Data/G16函数测试/计算日志提取数据.txt',data,delimiter='\t')
+    
+
 if __name__=='__main__':
-    test32()
+    test37()
 
 
 

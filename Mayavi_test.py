@@ -519,15 +519,15 @@ def test2():
 
 def test3():
     '''显示特定文件'''
-    # showKrigingData('./Data/Kriging_EI加点模型测试1/Kriging_True_Model.txt')      
-    showKrigingData('./Data/Kriging_EI加点模型测试1/A_Kriging_Predicte_Model.txt')  
-    showKrigingData('./Data/Kriging_EI加点模型测试1/A_Kriging_Varience_Model.txt')   
-    showKrigingData('./Data/Kriging_EI加点模型测试1/A_Kriging_EI_Model.txt')   
+    showKrigingData('./Data/约束优化算法测试1/G8_Function.txt')      
+    # showKrigingData('./Data/Kriging_EI加点模型测试1/A_Kriging_Predicte_Model.txt')  
+    # showKrigingData('./Data/Kriging_EI加点模型测试1/A_Kriging_Varience_Model.txt')   
+    # showKrigingData('./Data/Kriging_EI加点模型测试1/A_Kriging_EI_Model.txt')   
   
 if __name__=='__main__':
     # test=DataVisual()
     # test.test13()
 
-    test2()
+    test3()
 
 

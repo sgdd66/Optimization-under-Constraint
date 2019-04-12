@@ -6,7 +6,7 @@
 # 
 # 文件名称：Main.py
 # 
-# 摘    要：针对G16问题的skco方法
+# 摘    要：针对G4问题的skco方法
 #
 # 创 建 者：上官栋栋
 # 
@@ -18,450 +18,92 @@
 # ***************************************************************************
 
 from Kriging import Kriging,writeFile,filterSamples
-from DOE import LatinHypercube,PseudoMonteCarlo
+from DOE import LatinHypercube
 import numpy as np
 from ADE import ADE
 from sklearn import svm as SVM_SKLearn
 import matplotlib.pyplot as plt
 
-class TestFunction_G16(object):
+class TestFunction_G4_Simple(object):
     '''
-    测试函数G16 \n
+    测试函数G4 \n
     变量维度 : 5\n
-    搜索空间 : l=[704.4148,68.6,0,193,25],u=[906.3855, 288.88, 134.75, 287.0966, 84.1988],li<xi<ui,i=1...5\n
-    全局最优值 : x* =  [705.174537070090537, 68.5999999999999943, 102.899999999999991, 282.324931593660324, 37.5841164258054832],f(x*) = -1.90515525853479
+    搜索空间 : l=(27,27,29),u=(45,45,40),li<xi<ui,i=1...5\n
+    全局最优值 : x* =  (29.996,45,36.7758),f(x*) = -30665.539
     '''
     def __init__(self):
         '''建立目标和约束函数'''
-        self.l = [704.4148,68.6,0,193,25]
-        self.u = [906.3855, 288.88, 134.75, 287.0966, 84.1988]
-        self.optimum = [705.174537070090537, 68.5999999999999943, 102.899999999999991, 282.324931593660324, 37.5841164258054832]
-        self.minimum = -1.90515525853479
 
-        self.y_l = [213.1,  17.505,    11.275, 214.228, 7.458,\
-            0.961,   1.612, 0.146, 107.99,  922.693,\
-            926.832,  18.766, 1072.163,  8961.448, 0.063, \
-            71084.33, 2802713]
+        self.dim = 3
+        self.l = [27,27,29]
+        self.u = [45,45,40]
 
-        self.y_u = [405.23, 1053.6667, 35.03,  665.585, 584.463,\
-            265.916, 7.046, 0.222, 273.366, 1286.105,\
-            1444.046, 537.141, 3247.039, 26844.086,0.386,\
-            140000, 12146108]
+        self.optimum = [29.9952560256815985,45,36.7758129057882073]
 
-        self.dim = 5
+        self.data = np.loadtxt('./Data/G4简化函数测试1/G4简化函数空间0.txt')
 
-        self.data = np.loadtxt('./Data/G16函数测试/G16函数空间0.txt')
+    def aim_Matrix(self,M):
+        A = 5.3578547*M[:,0]**2+0.8356891*78*M[:,2]+37.293239*78-40792.141
+        return A
 
-    def Value_Mark(self,x):
-        '''
-        由于计算过程复杂,为了避免重复计算,一次性给出目标函数和约束结果\n
-        in:\n
-        x : array
-        out : \n
-        [value,mark] : value是目标函数的值,mark是判定结果,1表示满足约束,-1表示不满足
-        '''
-
-        if len(x) != self.dim:
-            raise ValueError('TestFunction_G16：参数维度与测试函数维度不匹配')
-        
-        if np.sum(x<self.l)>0 or np.sum(x>self.u)>0:
-            raise ValueError('TestFunction_G16: 参数已超出搜索空间')        
-
-        y = np.zeros(17)
-        c = np.zeros(17)
-        y[0] = x[1]+x[2]+41.6
-        c[0] = 0.024*x[3]-4.62
-        y[1] = 12.5/c[0]+12
-        c[1] = 0.0003535*x[0]**2+0.5311*x[0]+0.08705*y[1]*x[0]
-        c[2] = 0.052*x[0]+78+0.002377*y[1]*x[0]
-        y[2] = c[1]/c[2]
-        y[3] = 19*y[2]
-        c[3] = 0.04782*(x[0]-y[2])+0.1956*(x[0]-y[2])**2/x[1]+0.6376*y[3]+1.594*y[2]
-        c[4] = 100*x[1]
-        c[5] = x[0]-y[2]-y[3]
-        c[6] = 0.95-c[3]/c[4]
-        y[4] = c[5]*c[6]
-        y[5] = x[0]-y[4]-y[3]-y[2]
-        c[7] = (y[4]+y[3])*0.995
-        y[6] = c[7]/y[0]
-        y[7] = c[7]/3798
-        c[8] = y[6]-0.0663*y[6]/y[7]-0.3153
-        y[8] = 96.82/c[8]+0.321*y[0]
-        y[9] = 1.29*y[4]+1.258*y[3]+2.29*y[2]+1.71*y[5]
-        y[10] = 1.71*x[0]-0.452*y[3]+0.58*y[2]
-        c[9] = 12.3/752.3
-        c[10] = 1.75*0.995*y[1]*x[0]
-        c[11] = 0.995*y[9]+1998
-        y[11] = c[9]*x[0]+c[10]/c[11]
-        y[12] = c[11]-1.75*y[1]
-        y[13] = 3623 +64.4*x[1]+58.4*x[2]+146312/(y[8]+x[4])
-        c[12] = 0.995*y[9]+60.8*x[1]+48*x[3]-0.1121*y[13]-5095
-        y[14] = y[12]/c[12]
-        y[15] = 148000-331000*y[14]+40*y[12]-61*y[14]*y[12]
-        c[13] = 2324*y[9]-28740000*y[1]
-        y[16] = 14130000-1328*y[9]-531*y[10]+c[13]/c[11]
-        c[14] = y[12]/y[14]-y[12]/0.52
-        c[15] = 1.104-0.72*y[14]
-        c[16] = y[8]+x[4]
-
-        value = 0.000117*y[13] + 0.1365 + 0.00002358*y[12] + 0.000001502*y[15] + 0.0321*y[11] + \
-            0.004324*y[4] + 0.0001*c[14]/c[15]+ 37.48*y[1]/c[11]-0.0000005843*y[16]
-        
-        g = np.zeros(4)
-        g[0] = 0.28*y[4]/0.72-y[3]
-        g[1] = x[2]-1.5*x[1]
-        g[2] = 3496*y[1]/c[11]-21
-        g[3] = 110.6+y[0]-62212/c[16]
-
-        if np.sum(g>0)>0:
-            mark = -1
-            return np.array([value,mark])
-
-        elif np.sum(y<self.y_l)>0:
-            mark = -1
-            return np.array([value,mark])    
-        
-        elif np.sum(y>self.y_u)>0:
-            mark = -1
-            return np.array([value,mark])  
-
-        else:
-            mark = 1
-            return np.array([value,mark]) 
-
-    def Value_Mark_Matrix(self,M):
-        '''
-        由于计算过程复杂,为了避免重复计算,一次性给出目标函数和约束结果\n
-        in:\n
-        M : 二维矩阵,每一行为一个样本
-        out : \n
-        [value,mark] : value是目标函数的值,mark是判定结果,1表示满足约束,-1表示不满足
-        '''
-
-        if M.shape[1] != self.dim:
-            raise ValueError('TestFunction_G16：参数维度与测试函数维度不匹配')
-        
-        if np.sum(M<self.l)>0 or np.sum(M>self.u)>0:
-            raise ValueError('TestFunction_G16: 参数已超出搜索空间')        
-
-        num = M.shape[0]
-
-        y = np.zeros((num,17))
-        c = np.zeros((num,17))
-
-        y[:,0] = M[:,1]+M[:,2]+41.6
-        c[:,0] = 0.024*M[:,3]-4.62
-        y[:,1] = 12.5/c[:,0]+12
-        c[:,1] = 0.0003535*M[:,0]**2+0.5311*M[:,0]+0.08705*y[:,1]*M[:,0]
-        c[:,2] = 0.052*M[:,0]+78+0.002377*y[:,1]*M[:,0]
-        y[:,2] = c[:,1]/c[:,2]
-        y[:,3] = 19*y[:,2]
-        c[:,3] = 0.04782*(M[:,0]-y[:,2])+0.1956*(M[:,0]-y[:,2])**2/M[:,1]+0.6376*y[:,3]+1.594*y[:,2]
-        c[:,4] = 100*M[:,1]
-        c[:,5] = M[:,0]-y[:,2]-y[:,3]
-        c[:,6] = 0.95-c[:,3]/c[:,4]
-        y[:,4] = c[:,5]*c[:,6]
-        y[:,5] = M[:,0]-y[:,4]-y[:,3]-y[:,2]
-        c[:,7] = (y[:,4]+y[:,3])*0.995
-        y[:,6] = c[:,7]/y[:,0]
-        y[:,7] = c[:,7]/3798
-        c[:,8] = y[:,6]-0.0663*y[:,6]/y[:,7]-0.3153
-        y[:,8] = 96.82/c[:,8]+0.321*y[:,0]
-        y[:,9] = 1.29*y[:,4]+1.258*y[:,3]+2.29*y[:,2]+1.71*y[:,5]
-        y[:,10] = 1.71*M[:,0]-0.452*y[:,3]+0.58*y[:,2]
-        c[:,9] = 12.3/752.3
-        c[:,10] = 1.75*0.995*y[:,1]*M[:,0]
-        c[:,11] = 0.995*y[:,9]+1998
-        y[:,11] = c[:,9]*M[:,0]+c[:,10]/c[:,11]
-        y[:,12] = c[:,11]-1.75*y[:,1]
-        y[:,13] = 3623 +64.4*M[:,1]+58.4*M[:,2]+146312/(y[:,8]+M[:,4])
-        c[:,12] = 0.995*y[:,9]+60.8*M[:,1]+48*M[:,3]-0.1121*y[:,13]-5095
-        y[:,14] = y[:,12]/c[:,12]
-        y[:,15] = 148000-331000*y[:,14]+40*y[:,12]-61*y[:,14]*y[:,12]
-        c[:,13] = 2324*y[:,9]-28740000*y[:,1]
-        y[:,16] = 14130000-1328*y[:,9]-531*y[:,10]+c[:,13]/c[:,11]
-        c[:,14] = y[:,12]/y[:,14]-y[:,12]/0.52
-        c[:,15] = 1.104-0.72*y[:,14]
-        c[:,16] = y[:,8]+M[:,4]
-
-        value = 0.000117*y[:,13] + 0.1365 + 0.00002358*y[:,12] + 0.000001502*y[:,15] + 0.0321*y[:,11] + \
-            0.004324*y[:,4] + 0.0001*c[:,14]/c[:,15]+ 37.48*y[:,1]/c[:,11]-0.0000005843*y[:,16]
-        
-        g = np.zeros((num,4))
-        g[:,0] = 0.28*y[:,4]/0.72-y[:,3]
-        g[:,1] = M[:,2]-1.5*M[:,1]
-        g[:,2] = 3496*y[:,1]/c[:,11]-21
-        g[:,3] = 110.6+y[:,0]-62212/c[:,16]
-
-        cst1 = np.sum(g>0,axis=1)
-        cst2 = np.sum(y<self.y_l,axis=1)
-        cst3 = np.sum(y>self.y_u,axis=1)
-        mark = cst1+cst2+cst3
-        
-        mark[np.where(mark>0)] = -1
-        mark[np.where(mark==0)] = 1
-
-        value = value.reshape((-1,1))
-        mark = mark.reshape((-1,1))
-        return np.hstack((value,mark))
-
-    def isOK(self,x):
-        '''
-        判断是否满足约束\n
-        in:\n
-        x : array
-        out : \n
-        [value,mark] : value是目标函数的值,mark是判定结果,1表示满足约束,-1表示不满足
-        '''
-
-        if len(x) != self.dim:
-            raise ValueError('TestFunction_G16：参数维度与测试函数维度不匹配')
-        
-        if np.sum(x<self.l)>0 or np.sum(x>self.u)>0:
-            raise ValueError('TestFunction_G16: 参数已超出搜索空间')        
-
-        y = np.zeros(17)
-        c = np.zeros(17)
-        y[0] = x[1]+x[2]+41.6
-        c[0] = 0.024*x[3]-4.62
-        y[1] = 12.5/c[0]+12
-        c[1] = 0.0003535*x[0]**2+0.5311*x[0]+0.08705*y[1]*x[0]
-        c[2] = 0.052*x[0]+78+0.002377*y[1]*x[0]
-        y[2] = c[1]/c[2]
-        y[3] = 19*y[2]
-        c[3] = 0.04782*(x[0]-y[2])+0.1956*(x[0]-y[2])**2/x[1]+0.6376*y[3]+1.594*y[2]
-        c[4] = 100*x[1]
-        c[5] = x[0]-y[2]-y[3]
-        c[6] = 0.95-c[3]/c[4]
-        y[4] = c[5]*c[6]
-        y[5] = x[0]-y[4]-y[3]-y[2]
-        c[7] = (y[4]+y[3])*0.995
-        y[6] = c[7]/y[0]
-        y[7] = c[7]/3798
-        c[8] = y[6]-0.0663*y[6]/y[7]-0.3153
-        y[8] = 96.82/c[8]+0.321*y[0]
-        y[9] = 1.29*y[4]+1.258*y[3]+2.29*y[2]+1.71*y[5]
-        y[10] = 1.71*x[0]-0.452*y[3]+0.58*y[2]
-        c[9] = 12.3/752.3
-        c[10] = 1.75*0.995*y[1]*x[0]
-        c[11] = 0.995*y[9]+1998
-        y[11] = c[9]*x[0]+c[10]/c[11]
-        y[12] = c[11]-1.75*y[1]
-        y[13] = 3623 +64.4*x[1]+58.4*x[2]+146312/(y[8]+x[4])
-        c[12] = 0.995*y[9]+60.8*x[1]+48*x[3]-0.1121*y[13]-5095
-        y[14] = y[12]/c[12]
-        y[15] = 148000-331000*y[14]+40*y[12]-61*y[14]*y[12]
-        c[13] = 2324*y[9]-28740000*y[1]
-        y[16] = 14130000-1328*y[9]-531*y[10]+c[13]/c[11]
-        c[14] = y[12]/y[14]-y[12]/0.52
-        c[15] = 1.104-0.72*y[14]
-        c[16] = y[8]+x[4]
-        
-        g = np.zeros(4)
-        g[0] = 0.28*y[4]/0.72-y[3]
-        g[1] = x[2]-1.5*x[1]
-        g[2] = 3496*y[1]/c[11]-21
-        g[3] = 110.6+y[0]-62212/c[16]
-
-        if np.sum(g>0)>0:
-            return -1
-
-        elif np.sum(y<self.y_l)>0:
-            return -1
-        
-        elif np.sum(y>self.y_u)>0:
-            return -1
-
-        else:
-            return 1
+    def aim(self,x):
+        A = 5.3578547*x[0]**2+0.8356891*78*x[2]+37.293239*78-40792.141
+        return A
 
     def isOK_Matrix(self,M):
-        '''
-        判断是否满足约束\n
-        in:\n
-        M : 二维矩阵,每一行为一个样本
-        out : \n
-        [value,mark] : value是目标函数的值,mark是判定结果,1表示满足约束,-1表示不满足
-        '''
-
+        '''检查样本点x是否违背约束，是返回-1，否返回1\n
+        input : \n
+        x : 样本点，一维向量\n
+        output : \n
+        mark : int，-1表示违反约束，1表示不违反约束\n'''
         if M.shape[1] != self.dim:
-            raise ValueError('TestFunction_G16：参数维度与测试函数维度不匹配')
+            raise ValueError('isOK：参数维度与测试函数维度不匹配')
         
         if np.sum(M<self.l)>0 or np.sum(M>self.u)>0:
-            raise ValueError('TestFunction_G16: 参数已超出搜索空间')        
+            raise ValueError('TestFunction_G16: 参数已超出搜索空间')     
 
-        num = M.shape[0]
+        u = 85.334407+0.0056858*33*M[:,2]+0.0006262*78*M[:,1]-0.0022053*M[:,0]*M[:,2]
+        v = 80.51249+0.0071317*33*M[:,2]+0.0029955*78*33+0.0021813*M[:,0]**2
+        w = 9.300961+0.0047026*M[:,0]*M[:,2]+0.0012547*78*M[:,0]+0.0019085*M[:,0]*M[:,1]
 
-        y = np.zeros((num,17))
-        c = np.zeros((num,17))
-
-        y[:,0] = M[:,1]+M[:,2]+41.6
-        c[:,0] = 0.024*M[:,3]-4.62
-        y[:,1] = 12.5/c[:,0]+12
-        c[:,1] = 0.0003535*M[:,0]**2+0.5311*M[:,0]+0.08705*y[:,1]*M[:,0]
-        c[:,2] = 0.052*M[:,0]+78+0.002377*y[:,1]*M[:,0]
-        y[:,2] = c[:,1]/c[:,2]
-        y[:,3] = 19*y[:,2]
-        c[:,3] = 0.04782*(M[:,0]-y[:,2])+0.1956*(M[:,0]-y[:,2])**2/M[:,1]+0.6376*y[:,3]+1.594*y[:,2]
-        c[:,4] = 100*M[:,1]
-        c[:,5] = M[:,0]-y[:,2]-y[:,3]
-        c[:,6] = 0.95-c[:,3]/c[:,4]
-        y[:,4] = c[:,5]*c[:,6]
-        y[:,5] = M[:,0]-y[:,4]-y[:,3]-y[:,2]
-        c[:,7] = (y[:,4]+y[:,3])*0.995
-        y[:,6] = c[:,7]/y[:,0]
-        y[:,7] = c[:,7]/3798
-        c[:,8] = y[:,6]-0.0663*y[:,6]/y[:,7]-0.3153
-        y[:,8] = 96.82/c[:,8]+0.321*y[:,0]
-        y[:,9] = 1.29*y[:,4]+1.258*y[:,3]+2.29*y[:,2]+1.71*y[:,5]
-        y[:,10] = 1.71*M[:,0]-0.452*y[:,3]+0.58*y[:,2]
-        c[:,9] = 12.3/752.3
-        c[:,10] = 1.75*0.995*y[:,1]*M[:,0]
-        c[:,11] = 0.995*y[:,9]+1998
-        y[:,11] = c[:,9]*M[:,0]+c[:,10]/c[:,11]
-        y[:,12] = c[:,11]-1.75*y[:,1]
-        y[:,13] = 3623 +64.4*M[:,1]+58.4*M[:,2]+146312/(y[:,8]+M[:,4])
-        c[:,12] = 0.995*y[:,9]+60.8*M[:,1]+48*M[:,3]-0.1121*y[:,13]-5095
-        y[:,14] = y[:,12]/c[:,12]
-        y[:,15] = 148000-331000*y[:,14]+40*y[:,12]-61*y[:,14]*y[:,12]
-        c[:,13] = 2324*y[:,9]-28740000*y[:,1]
-        y[:,16] = 14130000-1328*y[:,9]-531*y[:,10]+c[:,13]/c[:,11]
-        c[:,14] = y[:,12]/y[:,14]-y[:,12]/0.52
-        c[:,15] = 1.104-0.72*y[:,14]
-        c[:,16] = y[:,8]+M[:,4]
-        
-        g = np.zeros((num,4))
-        g[:,0] = 0.28*y[:,4]/0.72-y[:,3]
-        g[:,1] = M[:,2]-1.5*M[:,1]
-        g[:,2] = 3496*y[:,1]/c[:,11]-21
-        g[:,3] = 110.6+y[:,0]-62212/c[:,16]
-
-        cst1 = np.sum(g>0,axis=1)
-        cst2 = np.sum(y<self.y_l,axis=1)
-        cst3 = np.sum(y>self.y_u,axis=1)
-        mark = cst1+cst2+cst3
-        
+        #约束函数，小于等于0为满足约束
+        g = np.zeros((M.shape[0],6))
+        g[:,0] = u-92
+        g[:,1] = -u
+        g[:,2] = v-110
+        g[:,3] = -v+90
+        g[:,4] = w-25
+        g[:,5] = -w+20
+        mark = np.sum(g>0,axis=1)
         mark[np.where(mark>0)] = -1
         mark[np.where(mark==0)] = 1
 
         return mark
 
-    def aim(self,x):
-        '''
-        求解目标函数\n
-        in:\n
-        x : array
-        out : \n
-        [value,mark] : value是目标函数的值,mark是判定结果,1表示满足约束,-1表示不满足
-        '''
-
+    def isOK(self,x):
         if len(x) != self.dim:
-            raise ValueError('TestFunction_G16：参数维度与测试函数维度不匹配')
-        
-        if np.sum(x<self.l)>0 or np.sum(x>self.u)>0:
-            raise ValueError('TestFunction_G16: 参数已超出搜索空间')        
+            raise ValueError('isOK：参数维度与测试函数维度不匹配')
+          
 
-        y = np.zeros(17)
-        c = np.zeros(17)
-        y[0] = x[1]+x[2]+41.6
-        c[0] = 0.024*x[3]-4.62
-        y[1] = 12.5/c[0]+12
-        c[1] = 0.0003535*x[0]**2+0.5311*x[0]+0.08705*y[1]*x[0]
-        c[2] = 0.052*x[0]+78+0.002377*y[1]*x[0]
-        y[2] = c[1]/c[2]
-        y[3] = 19*y[2]
-        c[3] = 0.04782*(x[0]-y[2])+0.1956*(x[0]-y[2])**2/x[1]+0.6376*y[3]+1.594*y[2]
-        c[4] = 100*x[1]
-        c[5] = x[0]-y[2]-y[3]
-        c[6] = 0.95-c[3]/c[4]
-        y[4] = c[5]*c[6]
-        y[5] = x[0]-y[4]-y[3]-y[2]
-        c[7] = (y[4]+y[3])*0.995
-        y[6] = c[7]/y[0]
-        y[7] = c[7]/3798
-        c[8] = y[6]-0.0663*y[6]/y[7]-0.3153
-        y[8] = 96.82/c[8]+0.321*y[0]
-        y[9] = 1.29*y[4]+1.258*y[3]+2.29*y[2]+1.71*y[5]
-        y[10] = 1.71*x[0]-0.452*y[3]+0.58*y[2]
-        c[9] = 12.3/752.3
-        c[10] = 1.75*0.995*y[1]*x[0]
-        c[11] = 0.995*y[9]+1998
-        y[11] = c[9]*x[0]+c[10]/c[11]
-        y[12] = c[11]-1.75*y[1]
-        y[13] = 3623 +64.4*x[1]+58.4*x[2]+146312/(y[8]+x[4])
-        c[12] = 0.995*y[9]+60.8*x[1]+48*x[3]-0.1121*y[13]-5095
-        y[14] = y[12]/c[12]
-        y[15] = 148000-331000*y[14]+40*y[12]-61*y[14]*y[12]
-        c[13] = 2324*y[9]-28740000*y[1]
-        y[16] = 14130000-1328*y[9]-531*y[10]+c[13]/c[11]
-        c[14] = y[12]/y[14]-y[12]/0.52
-        c[15] = 1.104-0.72*y[14]
-        c[16] = y[8]+x[4]
+        u = 85.334407+0.0056858*33*x[2]+0.0006262*78*x[1]-0.0022053*x[0]*x[2]
+        v = 80.51249+0.0071317*33*x[2]+0.0029955*78*33+0.0021813*x[0]**2
+        w = 9.300961+0.0047026*x[0]*x[2]+0.0012547*78*x[0]+0.0019085*x[0]*x[1]
 
-        value = 0.000117*y[13] + 0.1365 + 0.00002358*y[12] + 0.000001502*y[15] + 0.0321*y[11] + \
-            0.004324*y[4] + 0.0001*c[14]/c[15]+ 37.48*y[1]/c[11]-0.0000005843*y[16]
+        #约束函数，小于等于0为满足约束
+        g = np.zeros(6)
+        g[0] = u-92
+        g[1] = -u
+        g[2] = v-110
+        g[3] = -v+90
+        g[4] = w-25
+        g[5] = -w+20
+        mark = np.sum(g>0)
 
-        return value
+        if mark>0:
+            return -1
+        else:
+            return 1
 
-    def aim_Matrix(self,M):
-        '''
-        求解目标函数\n
-        in:\n
-        M : 二维矩阵,每一行为一个样本
-        out : \n
-        [value,mark] : value是目标函数的值,mark是判定结果,1表示满足约束,-1表示不满足
-        '''
-
-        if M.shape[1] != self.dim:
-            raise ValueError('TestFunction_G16：参数维度与测试函数维度不匹配')
-        
-        if np.sum(M<self.l)>0 or np.sum(M>self.u)>0:
-            raise ValueError('TestFunction_G16: 参数已超出搜索空间')        
-
-        num = M.shape[0]
-
-        y = np.zeros((num,17))
-        c = np.zeros((num,17))
-
-        y[:,0] = M[:,1]+M[:,2]+41.6
-        c[:,0] = 0.024*M[:,3]-4.62
-        y[:,1] = 12.5/c[:,0]+12
-        c[:,1] = 0.0003535*M[:,0]**2+0.5311*M[:,0]+0.08705*y[:,1]*M[:,0]
-        c[:,2] = 0.052*M[:,0]+78+0.002377*y[:,1]*M[:,0]
-        y[:,2] = c[:,1]/c[:,2]
-        y[:,3] = 19*y[:,2]
-        c[:,3] = 0.04782*(M[:,0]-y[:,2])+0.1956*(M[:,0]-y[:,2])**2/M[:,1]+0.6376*y[:,3]+1.594*y[:,2]
-        c[:,4] = 100*M[:,1]
-        c[:,5] = M[:,0]-y[:,2]-y[:,3]
-        c[:,6] = 0.95-c[:,3]/c[:,4]
-        y[:,4] = c[:,5]*c[:,6]
-        y[:,5] = M[:,0]-y[:,4]-y[:,3]-y[:,2]
-        c[:,7] = (y[:,4]+y[:,3])*0.995
-        y[:,6] = c[:,7]/y[:,0]
-        y[:,7] = c[:,7]/3798
-        c[:,8] = y[:,6]-0.0663*y[:,6]/y[:,7]-0.3153
-        y[:,8] = 96.82/c[:,8]+0.321*y[:,0]
-        y[:,9] = 1.29*y[:,4]+1.258*y[:,3]+2.29*y[:,2]+1.71*y[:,5]
-        y[:,10] = 1.71*M[:,0]-0.452*y[:,3]+0.58*y[:,2]
-        c[:,9] = 12.3/752.3
-        c[:,10] = 1.75*0.995*y[:,1]*M[:,0]
-        c[:,11] = 0.995*y[:,9]+1998
-        y[:,11] = c[:,9]*M[:,0]+c[:,10]/c[:,11]
-        y[:,12] = c[:,11]-1.75*y[:,1]
-        y[:,13] = 3623 +64.4*M[:,1]+58.4*M[:,2]+146312/(y[:,8]+M[:,4])
-        c[:,12] = 0.995*y[:,9]+60.8*M[:,1]+48*M[:,3]-0.1121*y[:,13]-5095
-        y[:,14] = y[:,12]/c[:,12]
-        y[:,15] = 148000-331000*y[:,14]+40*y[:,12]-61*y[:,14]*y[:,12]
-        c[:,13] = 2324*y[:,9]-28740000*y[:,1]
-        y[:,16] = 14130000-1328*y[:,9]-531*y[:,10]+c[:,13]/c[:,11]
-        c[:,14] = y[:,12]/y[:,14]-y[:,12]/0.52
-        c[:,15] = 1.104-0.72*y[:,14]
-        c[:,16] = y[:,8]+M[:,4]
-
-        value = 0.000117*y[:,13] + 0.1365 + 0.00002358*y[:,12] + 0.000001502*y[:,15] + 0.0321*y[:,11] + \
-            0.004324*y[:,4] + 0.0001*c[:,14]/c[:,15]+ 37.48*y[:,1]/c[:,11]-0.0000005843*y[:,16]
-        
-        return value
 
     def report(self,svm):
         '''比较SVM与实际分类差异'''
@@ -519,7 +161,7 @@ class TestFunction_G16(object):
     def TestData(self):   
 
         pointNum = 1
-        dimNum = [18,18,18,18,18]
+        dimNum = [50,50,50]
         weight = np.zeros(self.dim)
         for i in range(self.dim):
             pointNum *= dimNum[i]
@@ -546,11 +188,11 @@ class TestFunction_G16(object):
                     if index == 0:
                         break       
                 
-            points_mark = self.aim_matrix(points)
-            points_mark = points_mark[:,1]
+            points_mark = self.isOK_Matrix(points)
             points_mark = points_mark.reshape((-1,1))
             data = np.hstack((points,points_mark))
-            np.savetxt('./Data/G16函数测试/G16函数空间%d.txt'%fileIndex,data)
+            
+            np.savetxt('./Data/G4简化函数测试1/G4简化函数空间%d.txt'%fileIndex,data)
 
 class SKCO(object):
     '''基于SVM和kriging的含约束优化方法\n
@@ -646,13 +288,12 @@ class SKCO(object):
 
         #理论分割函数
         f = self.f
-        # data = np.loadtxt(self.logPath+'/B_Samples0.txt')
-        data = np.loadtxt(self.logPath+'/A_Samples.txt')        
+        data = np.loadtxt(self.logPath+'/A_Samples.txt')
         samples = data[:,0:f.dim]
         mark = data[:,f.dim+1]
 
         # svm=SVM_SKLearn.SVC(C=1000,kernel='linear')
-        svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=0.00008)
+        svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=0.0005)
 
         print('训练初始支持向量机...')
         svm.fit(samples,mark)
@@ -701,7 +342,7 @@ class SKCO(object):
         penalty = 10000000000000
 
         # 加载支持向量机
-        svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=0.00008)
+        svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=0.0005)
         
         # 提取已采样样本的坐标，值，是否违反约束的标志
         testFunc = self.f
@@ -719,7 +360,7 @@ class SKCO(object):
         #建立响应面
         kriging = Kriging()
 
-        theta = [6.39935517, 0.663649334, 14.2249506, 6.65649918, 0.001]
+        theta = [28.9228845, 0.001, 0.63095945]
         kriging.fit(samples, value, self.f.l, self.f.u, theta)
         
         # print('正在优化theta参数....')    
@@ -740,7 +381,8 @@ class SKCO(object):
         kriging.optimumLocation = opt_ind.x
         kriging.optimum = kriging.get_Y(opt_ind.x)
         print('最优值的实际判定结果%.4f'%testFunc.isOK(opt_ind.x))      
-        print('最优值的SVM判定结果%.4f'%svm.decision_function([opt_ind.x]))                
+        print('最优值的SVM判定结果%.4f'%svm.decision_function([opt_ind.x]))    
+        print('最优值实际函数值%.4f'%testFunc.aim(opt_ind.x))            
 
         #目标函数是EI函数和约束罚函数的组合函数
         def EI_optimum(x):
@@ -755,7 +397,7 @@ class SKCO(object):
 
         iterNum = 100    #迭代次数
         maxEI_threshold = 0.0001
-        smallestDistance = 0.01
+        smallestDistance = 0.05
 
 
         for k in range(iterNum):
@@ -795,8 +437,8 @@ class SKCO(object):
                 print('EI全局最优值%.5f'%maxEI)
             
             # 当加点数目为0，说明新加点与原有点的距离过近
-            if nextSample.shape[0] == 0:
-                print('新加点的数目为0 ，计算终止')
+            if nextSample.shape[0] < 2:
+                print('新加点的数目小于2 ，计算终止')
                 break
             else:
                 print('本轮加点数目%d'%nextSample.shape[0])
@@ -829,21 +471,25 @@ class SKCO(object):
             opt_ind = ade.evolution(maxGen=5000)
             kriging.optimumLocation = opt_ind.x
             kriging.optimum = kriging.get_Y(opt_ind.x)
-            print('最优值的实际判定结果%.4f'%testFunc.isOK(kriging.optimumLocation))     
+            print('最优值的实际判定结果%.4f'%testFunc.isOK(kriging.optimumLocation))    
+            print('最优值实际函数值%.4f'%testFunc.aim(opt_ind.x))     
 
             Data = np.hstack((samples,value.reshape((-1,1)),mark.reshape((-1,1))))
             np.savetxt(self.logPath+'/全部样本点.txt',Data,delimiter='\t')
 
+
+        nextSample = kriging.optimumLocation
+        nextValue = testFunc.aim(nextSample)
+        nextFuncMark = testFunc.isOK(nextSample)
+
+        samples = np.vstack((samples,nextSample))
+        value = np.append(value,nextValue)
+        mark = np.append(mark,nextFuncMark)        
+
+        Data = np.hstack((samples,value.reshape((-1,1)),mark.reshape((-1,1))))
+        np.savetxt(self.logPath+'/全部样本点.txt',Data,delimiter='\t')   
+
         while testFunc.isOK(kriging.optimumLocation)==-1:
-
-            nextSample = kriging.optimumLocation
-            nextValue = testFunc.aim(nextSample)
-            nextFuncMark = testFunc.isOK(nextSample)
-
-            samples = np.vstack((samples,nextSample))
-            value = np.append(value,nextValue)
-            mark = np.append(mark,nextFuncMark)
-
 
             print('区间错误,训练支持向量机...')
             svm.fit(samples,mark)
@@ -856,6 +502,15 @@ class SKCO(object):
             kriging.optimumLocation = opt_ind.x
             kriging.optimum = kriging.get_Y(opt_ind.x)   
             print('最优值的实际判定结果%.4f'%testFunc.isOK(kriging.optimumLocation)) 
+
+
+            nextSample = kriging.optimumLocation
+            nextValue = testFunc.aim(nextSample)
+            nextFuncMark = testFunc.isOK(nextSample)
+
+            samples = np.vstack((samples,nextSample))
+            value = np.append(value,nextValue)
+            mark = np.append(mark,nextFuncMark)   
 
             Data = np.hstack((samples,value.reshape((-1,1)),mark.reshape((-1,1))))
             np.savetxt(self.logPath+'/全部样本点.txt',Data,delimiter='\t')   
@@ -1081,7 +736,7 @@ class SKCO(object):
         return samples_C      
 
     def infillSample2(self,svm,samples,T0,sampleCMaximum):
-        '''超平面边界加点算法，选取距离超平面最近的数目为candidateNum的样本点，同时用加入样本集C的数目来限制加点密度\n
+        '''超平面边界加点算法，选取距离超平面T0之内的样本点，同时用加入样本集C的数目来限制加点密度\n
         in : \n
         svm : 支持向量机实例\n
         samples : 已计算的样本点\n
@@ -1143,7 +798,7 @@ class SKCO(object):
         return samples_C  
 
     def infillSample3(self,svm,samples,T0,sampleCMaximum):
-        '''针对高维问题的超平面边界加点算法，选取距离超平面最近的数目为candidateNum的样本点，同时用加入样本集C的数目来限制加点密度\n
+        '''针对高维问题的超平面边界加点算法，选取距离超平面T0之内的样本点，同时用加入样本集C的数目来限制加点密度\n
         in : \n
         svm : 支持向量机实例\n
         samples : 已计算的样本点\n
@@ -1229,7 +884,7 @@ class SKCO(object):
         #理论分割函数
         f = self.f   
 
-        data = np.loadtxt(self.logPath+'/B_Samples.txt')
+        data = np.loadtxt(self.logPath+'/A_Samples.txt')
         samples = data[:,0:f.dim]
         mark = data[:,f.dim+1]
 
@@ -1245,57 +900,47 @@ class SKCO(object):
         #     # print(svm.decision_function(samples))
         #     f.report(svm)
 
-        # # 用同样的方法检测高斯核函数
+        # 用同样的方法检测高斯核函数
+        # for i in range(1,10):
+        #     g = i*0.00001
+        #     print('\n高斯核函数,指数:%.6f'%g)
+        #     svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=g)            
+        #     # print('\n高斯核函数,惩罚系数:%.6f'%g)            
+        #     # svm=SVM_SKLearn.SVC(C=g,kernel='rbf',gamma=0.00008) 
+        #     svm.fit(samples,mark) 
+        #     f.report(svm)           
+        # for i in range(1,10):
+        #     g = i*0.0001
+        #     print('\n高斯核函数,指数:%.6f'%g)
+        #     svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=g)            
+        #     # print('\n高斯核函数,惩罚系数:%.6f'%g)            
+        #     # svm=SVM_SKLearn.SVC(C=g,kernel='rbf',gamma=0.00008) 
+        #     svm.fit(samples,mark) 
+        #     f.report(svm)   
+
         for i in range(1,10):
-            g = i*0.00001
-            print('\n高斯核函数,指数:%.6f'%g)
-            svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=g)            
-            # print('\n高斯核函数,惩罚系数:%.6f'%g)            
-            # svm=SVM_SKLearn.SVC(C=g,kernel='rbf',gamma=0.00008) 
-            svm.fit(samples,mark) 
-            f.report(svm)           
-        for i in range(1,10):
-            g = i*0.0001
-            print('\n高斯核函数,指数:%.6f'%g)
-            svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=g)            
-            # print('\n高斯核函数,惩罚系数:%.6f'%g)            
-            # svm=SVM_SKLearn.SVC(C=g,kernel='rbf',gamma=0.00008) 
-            svm.fit(samples,mark) 
-            f.report(svm)   
-        for i in range(1,10):
-            g = i*0.001
-            print('\n高斯核函数,指数:%.6f'%g)
-            svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=g)            
-            # print('\n高斯核函数,惩罚系数:%.6f'%g)            
-            # svm=SVM_SKLearn.SVC(C=g,kernel='rbf',gamma=0.00008) 
+            g = i*1000
+            # print('\n高斯核函数,指数:%.6f'%g)
+            # svm=SVM_SKLearn.SVC(C=1000,kernel='rbf',gamma=g)            
+            print('\n高斯核函数,惩罚系数:%.6f'%g)            
+            svm=SVM_SKLearn.SVC(C=g,kernel='rbf',gamma=0.0001) 
             svm.fit(samples,mark) 
             f.report(svm)       
 
 
 def SKCO_test():
-    f = TestFunction_G16()
-    skco = SKCO(f,'./Data/G16函数测试')
-    # skco.Step_A(151,20)
+    f = TestFunction_G4_Simple()
+    # f.TestData()
+
+    skco = SKCO(f,'./Data/G4简化函数测试1')
+    # skco.Step_A(31,10)
     # skco.Test_SVM_Kernal()    
 
-    # skco.Step_B([0.005,0.005,0.005,0.01,0.01],[20,20,20,20,20]) 
+    # skco.Step_B([0.1,0.1,0.1,0.1,0.1],[10,10,10,10,10]) 
+    skco.Step_C()
 
-    # skco.Step_B([0.1],[20]) 
-    # print('//////////////////////////////////')
-    # skco.Step_B([0.5],[20])
-    # print('//////////////////////////////////')
-    # skco.Step_B([0.5],[20]) 
-    # print('//////////////////////////////////')   
-    # skco.Step_B([0.5],[20])        
-    # print('//////////////////////////////////')     
-    # skco.Step_B([0.5],[20])   
-
-    # skco.Step_C()
-    # data = np.loadtxt('./Data/G16函数测试/全部样本点.txt')
-    # print(data[np.where(data[:,6]==1)])
 
 
 if __name__=='__main__':
     SKCO_test()
-    
 

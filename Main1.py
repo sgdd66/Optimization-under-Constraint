@@ -811,12 +811,15 @@ class SKCO(object):
 
 def SKCO_test():
     f = TestFunction_G4()
-    skco = SKCO(f,'./Data/G4函数测试7')
+    x=[78,33,30.49011196,43.44704214,37.73483666]
+    print(f.aim(x))
+    print(f.isOK(x))   
+    # skco = SKCO(f,'./Data/G4函数测试7')
     # skco.Step_A(51,20)
     # skco.Test_SVM_Kernal()    
 
     # skco.Step_B([0.08,0.06,0.04,0.02,0.01],[10,10,10,10,10])    
-    skco.Step_C()
+    # skco.Step_C()
 
 if __name__=='__main__':
     SKCO_test()

@@ -338,8 +338,18 @@ def test18():
 def test19():
     '''comb计算组合函数，perm计算排列函数'''
     from scipy.special import comb, perm
-    print(comb(4,2))
+    print(comb(71,10))
     print(perm(4,2))
+    from itertools import combinations,permutations
+    #combination不考虑顺序的排列组合,permutation考虑顺序的排列组合
+    print(list(combinations([1,2,3,4],2)))
+    print(list(permutations([1,2,3,4],2)))
+    # print(list(permutations([1,2,3,4],4)))    
+
+    l1 = np.array([1,2,3,4])
+    combList = combinations([0,1,2,3],2)
+    for c in combList:
+        print(l1[list(c)])
 
 def test20():
     '''测试文件路径，并建立文件路径'''
@@ -1056,9 +1066,31 @@ def test37():
     data = np.hstack((point,value,mark,distance))
     np.savetxt('./Data/G16函数测试/计算日志提取数据.txt',data,delimiter='\t')
     
+def test38():
+    with open('./Data/Rotor37实例测试/超平面第一次移动加点.txt','r') as file:
+        lines = file.readlines()
+    
+    with open('./Data/Rotor37实例测试/超平面第一次移动加点.txt','w') as file:
+        for i in range(len(lines)):
+            file.writelines(lines[i])
+            file.writelines('\r\n')
+            file.writelines('函数值:\t10000000000.00000000000000\n')
+            file.writelines('\r\n')
+        
+def test39():
+    '''sklearn交叉验证法'''
+    from sklearn.model_selection import StratifiedKFold
+    x = np.array([[1,2],[3,4],[1,2],[3,4]])
+    y = np.array([0,0,1,1])
+    skf = StratifiedKFold(n_splits=2)
+    for train_index,test_index in skf.split(x,y):
+        print('train_index:',train_index)
+        print('test_index',test_index)
+
+
 
 if __name__=='__main__':
-    test37()
+    test38()
 
 
 
